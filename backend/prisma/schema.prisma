@@ -32,6 +32,7 @@ model Clinic {
   users         User[]
   patients      Patient[]
   appointments  Appointment[]
+  medications   Medication[]
 
   @@map("clinics")
 }
@@ -139,5 +140,29 @@ model Appointment {
   @@index([appointmentDate])
   @@index([status])
   @@map("appointments")
+}
+
+// ============================================
+// MEDICATION (Медикамент)
+// ============================================
+
+model Medication {
+  id            String    @id @default(uuid())
+  clinicId      String
+  name          String
+  dosage        String
+  quantity      Int       @default(0)
+  price         Int       // Цена в копейках/минимальных единицах
+  expiryDate    DateTime
+  manufacturer  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([name])
+  @@map("medications")
 }
 
