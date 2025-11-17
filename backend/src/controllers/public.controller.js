@@ -66,8 +66,29 @@ export async function createAppointment(req, res, next) {
   try {
     const { clinicSlug, doctorId, patient, appointmentDate, reason, registeredAt } = req.body;
 
+    console.log('🔵 [PUBLIC CONTROLLER] Создание публичной заявки:', {
+      clinicSlug,
+      doctorId,
+      patientName: patient?.name,
+      appointmentDate,
+      registeredAt,
+    });
+
     // Преобразуем registeredAt в Date, если он передан как строка
-    const registeredAtDate = registeredAt ? new Date(registeredAt) : null;
+    let registeredAtDate = null;
+    if (registeredAt) {
+      registeredAtDate = new Date(registeredAt);
+      
+      // Проверяем, что дата валидна
+      if (isNaN(registeredAtDate.getTime())) {
+        console.warn('⚠️ [PUBLIC CONTROLLER] Некорректная дата registeredAt:', registeredAt);
+        registeredAtDate = null;
+      } else {
+        console.log('✅ [PUBLIC CONTROLLER] registeredAt успешно преобразован:', registeredAtDate.toISOString());
+      }
+    } else {
+      console.log('ℹ️ [PUBLIC CONTROLLER] registeredAt не передан, будет использовано null');
+    }
 
     const result = await publicService.createPublicAppointment(
       clinicSlug,
@@ -78,8 +99,14 @@ export async function createAppointment(req, res, next) {
       registeredAtDate
     );
 
+    console.log('✅ [PUBLIC CONTROLLER] Заявка создана успешно:', {
+      appointmentId: result.appointment?.id,
+      registeredAt: result.appointment?.registeredAt,
+    });
+
     successResponse(res, result, 201);
   } catch (error) {
+    console.error('🔴 [PUBLIC CONTROLLER] Ошибка создания заявки:', error.message);
     next(error);
   }
 }

@@ -120,11 +120,23 @@ export const PharmacyPage: React.FC = () => {
 
   const getStockStatus = (quantity: number) => {
     if (quantity > 100) {
-      return { label: 'В наличии', style: 'bg-secondary-10 text-secondary-100 border-secondary-100/20' };
+      return { 
+        label: 'В наличии', 
+        style: 'bg-secondary-10 text-secondary-100 border-secondary-100/20',
+        isWarning: false 
+      };
     } else if (quantity > 50) {
-      return { label: 'Заканчивается', style: 'bg-yellow-50 text-yellow-700 border-yellow-200' };
+      return { 
+        label: 'Заканчивается', 
+        style: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+        isWarning: false 
+      };
     } else {
-      return { label: 'Мало', style: 'bg-red-50 text-red-600 border-red-200' };
+      return { 
+        label: 'Мало', 
+        style: 'bg-red-50 text-red-600 border-red-200',
+        isWarning: true 
+      };
     }
   };
 
@@ -276,16 +288,40 @@ export const PharmacyPage: React.FC = () => {
           ) : (
             filteredMedications.map((medication: Medication) => {
               const stockStatus = getStockStatus(medication.quantity);
+              const isLowStock = stockStatus.isWarning;
               return (
-                <div key={medication.id} className="hover:bg-bg-primary transition-all duration-200 rounded-sm p-2 -mx-2">
+                <div 
+                  key={medication.id} 
+                  className={`hover:bg-bg-primary transition-all duration-200 rounded-sm p-2 -mx-2 relative ${
+                    isLowStock ? 'bg-red-50/30 border-l-4 border-red-500' : ''
+                  }`}
+                >
+                  {/* Warning indicator for low stock */}
+                  {isLowStock && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2">
+                      <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-main-10 rounded-sm flex items-center justify-center">
-                          <img src={pharmacyIcon} alt="Med" className="w-4 h-4" />
+                        <div className={`w-8 h-8 rounded-sm flex items-center justify-center ${
+                          isLowStock ? 'bg-red-100' : 'bg-main-10'
+                        }`}>
+                          {isLowStock ? (
+                            <span className="text-red-600 text-sm">⚠️</span>
+                          ) : (
+                            <img src={pharmacyIcon} alt="Med" className="w-4 h-4" />
+                          )}
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-text-100">{medication.name}</p>
+                          <p className={`text-xs font-medium ${
+                            isLowStock ? 'text-red-700' : 'text-text-100'
+                          }`}>
+                            {medication.name}
+                          </p>
                           <p className="text-[10px] text-text-10">{medication.manufacturer}</p>
                         </div>
                       </div>
@@ -293,7 +329,9 @@ export const PharmacyPage: React.FC = () => {
                     <div className="col-span-2 text-xs font-medium text-text-50">
                       {medication.dosage}
                     </div>
-                    <div className="col-span-2 text-xs font-medium text-text-100">
+                    <div className={`col-span-2 text-xs font-medium ${
+                      isLowStock ? 'text-red-600 font-semibold' : 'text-text-100'
+                    }`}>
                       {medication.quantity} шт
                     </div>
                     <div className="col-span-2 text-xs font-medium text-text-100">
@@ -307,9 +345,16 @@ export const PharmacyPage: React.FC = () => {
                       })}
                     </div>
                     <div className="col-span-1">
-                      <span className={`px-2 py-0.5 border rounded-sm text-[10px] font-normal ${stockStatus.style}`}>
-                        {stockStatus.label}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {isLowStock && (
+                          <span className="text-red-600 animate-pulse" title="Низкий запас!">
+                            ⚠️
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 border rounded-sm text-[10px] font-normal ${stockStatus.style}`}>
+                          {stockStatus.label}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end mt-3 pt-3 border-t border-stroke">

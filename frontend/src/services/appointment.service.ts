@@ -42,6 +42,7 @@ export const appointmentService = {
     appointmentDate: string;
     duration?: number;
     reason?: string;
+    registeredAt?: string; // Локальное время когда пользователь создал запись
   }): Promise<Appointment> {
     const { data } = await api.post<ApiResponse<Appointment>>('/appointments', appointment);
     return data.data;

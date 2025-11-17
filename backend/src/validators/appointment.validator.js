@@ -25,6 +25,9 @@ export const createAppointmentSchema = Joi.object({
   }),
   reason: Joi.string().max(500).allow('').optional(),
   notes: Joi.string().max(1000).allow('').optional(),
+  registeredAt: Joi.date().iso().optional().messages({
+    'date.base': 'RegisteredAt must be a valid date',
+  }),
 });
 
 /**

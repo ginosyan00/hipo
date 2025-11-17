@@ -44,7 +44,16 @@ export const ClinicPage: React.FC = () => {
       const appointmentDateTime = `${formData.appointmentDate}T${formData.appointmentTime}:00Z`;
       
       // Записываем локальное время пользователя в момент отправки формы
-      const registeredAt = new Date().toISOString();
+      // Сохраняем в формате ISO без конвертации в UTC, чтобы сохранить точное локальное время клиента
+      // Формат: YYYY-MM-DDTHH:mm:ss (без Z, чтобы не конвертировалось в UTC)
+      const now = new Date();
+      const timezoneOffset = -now.getTimezoneOffset(); // Получаем смещение в минутах (инвертируем знак)
+      const offsetHours = Math.floor(Math.abs(timezoneOffset) / 60);
+      const offsetMinutes = Math.abs(timezoneOffset) % 60;
+      const offsetSign = timezoneOffset >= 0 ? '+' : '-';
+      const offsetString = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMinutes).padStart(2, '0')}`;
+      
+      const registeredAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}${offsetString}`;
 
       await createMutation.mutateAsync({
         clinicSlug: slug!,

@@ -93,9 +93,9 @@ export async function create(clinicId, data) {
         name: data.name,
         dosage: data.dosage,
         quantity: data.quantity || 0,
-        price: data.price,
+        price: data.price || 0,
         expiryDate: new Date(data.expiryDate),
-        manufacturer: data.manufacturer,
+        manufacturer: data.manufacturer || '',
       },
     });
 

@@ -55,3 +55,4 @@ export const updateMedicationSchema = Joi.object({
   manufacturer: Joi.string().min(2).max(200).optional(),
 }).min(1); // Хотя бы одно поле обязательно
 
+

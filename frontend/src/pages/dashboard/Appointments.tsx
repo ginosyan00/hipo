@@ -328,15 +328,44 @@ export const AppointmentsPage: React.FC = () => {
                           minute: '2-digit',
                         })}
                       </p>
-                      {appointment.registeredAt && (
+                      {/* Показываем registeredAt если есть, иначе используем createdAt для старых записей */}
+                      {/* Отображаем время регистрации в том же формате, в котором клиент зарегистрировался */}
+                      {(appointment.registeredAt || appointment.createdAt) && (
                         <p className="text-text-10 mt-1 text-xs">
-                          📝 Зарегистрировано: {new Date(appointment.registeredAt).toLocaleString('ru-RU', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          📝 Зарегистрировано: {(() => {
+                            // Сначала проверяем, есть ли исходная строка времени в notes
+                            let registeredAtOriginalStr = null;
+                            if (appointment.notes) {
+                              const match = appointment.notes.match(/REGISTERED_AT_ORIGINAL:\s*(.+)/);
+                              if (match) {
+                                registeredAtOriginalStr = match[1].trim();
+                              }
+                            }
+                            
+                            // Если есть исходная строка, используем её для отображения локального времени клиента
+                            if (registeredAtOriginalStr) {
+                              const match = registeredAtOriginalStr.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
+                              if (match) {
+                                const [datePart, timePart] = [match[1], match[2]];
+                                const [year, month, day] = datePart.split('-');
+                                const [hours, minutes] = timePart.split(':');
+                                return `${day}.${month}.${year} ${hours}:${minutes}`;
+                              }
+                            }
+                            
+                            // Если исходной строки нет, используем стандартное форматирование
+                            const registeredAtStr = appointment.registeredAt || appointment.createdAt;
+                            if (!registeredAtStr) return '';
+                            
+                            const date = new Date(registeredAtStr);
+                            return date.toLocaleString('ru-RU', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            });
+                          })()}
                         </p>
                       )}
                       <p className="text-text-10 mt-1">⏱️ Длительность: {appointment.duration} мин</p>

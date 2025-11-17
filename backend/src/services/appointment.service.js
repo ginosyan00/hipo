@@ -224,7 +224,51 @@ export async function create(clinicId, data) {
     throw new Error('Time slot is not available. Doctor has another appointment at this time.');
   }
 
+  // Преобразуем registeredAt в Date, если оно передано как строка
+  // Сохраняем исходную строку для правильного отображения локального времени клиента
+  let registeredAtDate = null;
+  let registeredAtOriginalString = null;
+  
+  if (data.registeredAt) {
+    // Сохраняем исходную строку, если она передана
+    if (typeof data.registeredAt === 'string') {
+      registeredAtOriginalString = data.registeredAt;
+    }
+    
+    registeredAtDate = data.registeredAt instanceof Date 
+      ? data.registeredAt 
+      : new Date(data.registeredAt);
+    
+    // Проверяем, что дата валидна
+    if (isNaN(registeredAtDate.getTime())) {
+      console.warn('⚠️ [APPOINTMENT SERVICE] Некорректная дата registeredAt:', data.registeredAt);
+      // Если дата некорректна, используем текущее время
+      registeredAtDate = new Date();
+      registeredAtOriginalString = null;
+    } else {
+      console.log('✅ [APPOINTMENT SERVICE] registeredAt успешно преобразован:', registeredAtDate.toISOString());
+      if (registeredAtOriginalString) {
+        console.log('📝 [APPOINTMENT SERVICE] Сохранена исходная строка времени:', registeredAtOriginalString);
+      }
+    }
+  } else {
+    // Если registeredAt не передан, автоматически устанавливаем текущее время
+    // Это гарантирует, что время регистрации будет записано для всех записей
+    registeredAtDate = new Date();
+    console.log('ℹ️ [APPOINTMENT SERVICE] registeredAt не передан, используется текущее время:', registeredAtDate.toISOString());
+  }
+
   // Создаем приём
+  // Сохраняем исходную строку времени в notes, если она есть, для правильного отображения
+  let notes = data.notes || null;
+  if (registeredAtOriginalString && !notes) {
+    // Сохраняем исходное время регистрации в notes в формате: "REGISTERED_AT_ORIGINAL: <строка>"
+    notes = `REGISTERED_AT_ORIGINAL: ${registeredAtOriginalString}`;
+  } else if (registeredAtOriginalString && notes) {
+    // Если notes уже есть, добавляем информацию о времени регистрации
+    notes = `${notes}\nREGISTERED_AT_ORIGINAL: ${registeredAtOriginalString}`;
+  }
+  
   const appointment = await prisma.appointment.create({
     data: {
       clinicId, // ОБЯЗАТЕЛЬНО!
@@ -234,8 +278,8 @@ export async function create(clinicId, data) {
       duration: data.duration || 30,
       status: 'pending',
       reason: data.reason || null,
-      notes: data.notes || null,
-      registeredAt: data.registeredAt || null, // Локальное время регистрации от пользователя
+      notes: notes,
+      registeredAt: registeredAtDate, // Локальное время регистрации от пользователя (в UTC)
     },
     include: {
       doctor: {
