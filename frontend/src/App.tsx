@@ -7,6 +7,7 @@ import { DashboardPage } from './pages/dashboard/Dashboard';
 import { PatientsPage } from './pages/dashboard/Patients';
 import { AppointmentsPage } from './pages/dashboard/Appointments';
 import { StaffPage } from './pages/dashboard/Staff';
+import { SettingsPage } from './pages/dashboard/Settings';
 import { PatientDashboard } from './pages/dashboard/PatientDashboard';
 import { DoctorDashboard } from './pages/dashboard/DoctorDashboard';
 import { PartnerDashboard } from './pages/dashboard/PartnerDashboard';
@@ -131,7 +132,7 @@ function App() {
           path="/dashboard/settings"
           element={
             <RoleProtectedRoute allowedRoles={[UserRole.ADMIN, 'CLINIC']}>
-              <div className="p-6"><h1 className="text-2xl font-bold">Настройки (в разработке)</h1></div>
+              <SettingsPage />
             </RoleProtectedRoute>
           }
         />

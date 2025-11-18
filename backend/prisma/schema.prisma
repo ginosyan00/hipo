@@ -32,6 +32,8 @@ model Clinic {
   users         User[]
   patients      Patient[]
   appointments  Appointment[]
+  notifications Notification[]
+  settings      ClinicSettings?
 
   @@map("clinics")
 }
@@ -104,6 +106,7 @@ model Patient {
   // Relations
   clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   appointments Appointment[]
+  notifications Notification[]
 
   @@index([clinicId])
   @@index([phone])
@@ -115,23 +118,26 @@ model Patient {
 // ============================================
 
 model Appointment {
-  id              String    @id @default(uuid())
-  clinicId        String
-  doctorId        String
-  patientId       String
-  appointmentDate DateTime
-  duration        Int       @default(30)
-  status          String  @default("pending")  // pending | confirmed | completed | cancelled
-  notes           String?
-  reason          String?
-  registeredAt    DateTime? // Время когда пациент был на сайте и отправил регистрацию (локальное время пользователя)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  clinicId           String
+  doctorId           String
+  patientId          String
+  appointmentDate    DateTime
+  duration           Int       @default(30)
+  status             String  @default("pending")  // pending | confirmed | completed | cancelled
+  notes              String?
+  reason             String?
+  amount             Float?    // Сумма оплаты (в драмах/рублях)
+  registeredAt       DateTime? // Время когда пациент был на сайте и отправил регистрацию (локальное время пользователя)
+  cancellationReason String?   // Причина отмены приёма (обязательно при статусе cancelled)
+  suggestedNewDate   DateTime? // Предложенное новое время приёма (опционально)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
-  clinic          Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  doctor          User      @relation(fields: [doctorId], references: [id])
-  patient         Patient   @relation(fields: [patientId], references: [id])
+  clinic             Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor             User      @relation(fields: [doctorId], references: [id])
+  patient            Patient   @relation(fields: [patientId], references: [id])
 
   @@index([clinicId])
   @@index([doctorId])
@@ -139,5 +145,62 @@ model Appointment {
   @@index([appointmentDate])
   @@index([status])
   @@map("appointments")
+}
+
+// ============================================
+// NOTIFICATION (Уведомление)
+// ============================================
+
+model Notification {
+  id          String    @id @default(uuid())
+  clinicId    String
+  patientId   String
+  type        String    // cancellation | reschedule | reminder | confirmation | other
+  title       String
+  message     String
+  isRead      Boolean   @default(false)
+  appointmentId String? // ID приёма, связанного с уведомлением (опционально)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  clinic      Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient     Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([patientId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================
+// CLINIC SETTINGS (Настройки клиники)
+// ============================================
+
+model ClinicSettings {
+  id                    String    @id @default(uuid())
+  clinicId              String    @unique
+  timezone              String    @default("Asia/Yerevan")  // Часовой пояс
+  language              String    @default("ru")            // Язык интерфейса (ru | en | am)
+  currency              String    @default("AMD")            // Валюта (AMD | RUB | USD)
+  defaultAppointmentDuration Int   @default(30)             // Время приёма по умолчанию (минуты)
+  
+  // Настройки уведомлений
+  emailNotificationsEnabled Boolean @default(true)           // Email уведомления включены
+  smsNotificationsEnabled   Boolean @default(false)          // SMS уведомления включены
+  appointmentReminderHours  Int     @default(24)            // Напоминание о приёме (за сколько часов)
+  notifyNewAppointments      Boolean @default(true)           // Уведомления о новых заявках
+  notifyCancellations       Boolean @default(true)           // Уведомления об отменах
+  notifyConfirmations       Boolean @default(true)           // Уведомления о подтверждениях
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  clinic                Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@map("clinic_settings")
 }
 

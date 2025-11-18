@@ -26,6 +26,13 @@ router.use(tenantMiddleware);
 router.get('/', patientController.getAll);
 
 /**
+ * GET /api/v1/patients/visits
+ * Получить все визиты пациентов с полной информацией
+ * Доступ: admin, assistant, doctor
+ */
+router.get('/visits', patientController.getAllVisits);
+
+/**
  * GET /api/v1/patients/:id
  * Получить пациента по ID
  * Доступ: admin, assistant, doctor

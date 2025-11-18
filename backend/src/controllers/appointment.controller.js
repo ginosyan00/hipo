@@ -86,15 +86,25 @@ export async function update(req, res, next) {
 /**
  * PATCH /api/v1/appointments/:id/status
  * Изменить статус приёма
+ * При статусе 'completed' можно передать amount (сумму оплаты)
+ * При статусе 'cancelled' обязательно передать cancellationReason и опционально suggestedNewDate
  */
 export async function updateStatus(req, res, next) {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, amount, cancellationReason, suggestedNewDate } = req.body;
     const clinicId = req.user.clinicId;
     const userRole = req.user.role;
 
-    const appointment = await appointmentService.updateStatus(clinicId, id, status, userRole);
+    const appointment = await appointmentService.updateStatus(
+      clinicId, 
+      id, 
+      status, 
+      userRole, 
+      amount,
+      cancellationReason,
+      suggestedNewDate
+    );
 
     successResponse(res, appointment, 200);
   } catch (error) {

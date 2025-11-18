@@ -61,11 +61,38 @@ export const appointmentService = {
 
   /**
    * Изменить статус
+   * При статусе 'completed' можно передать amount (сумму оплаты)
+   * При статусе 'cancelled' обязательно передать cancellationReason и опционально suggestedNewDate
    */
-  async updateStatus(id: string, status: string): Promise<Appointment> {
+  async updateStatus(
+    id: string, 
+    status: string, 
+    amount?: number,
+    cancellationReason?: string,
+    suggestedNewDate?: string
+  ): Promise<Appointment> {
+    const body: { 
+      status: string; 
+      amount?: number;
+      cancellationReason?: string;
+      suggestedNewDate?: string;
+    } = { status };
+    
+    if (amount !== undefined) {
+      body.amount = amount;
+    }
+    
+    if (cancellationReason !== undefined) {
+      body.cancellationReason = cancellationReason;
+    }
+    
+    if (suggestedNewDate !== undefined) {
+      body.suggestedNewDate = suggestedNewDate;
+    }
+    
     const { data } = await api.patch<ApiResponse<Appointment>>(
       `/appointments/${id}/status`,
-      { status }
+      body
     );
     return data.data;
   },

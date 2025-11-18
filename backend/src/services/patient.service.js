@@ -29,19 +29,43 @@ export async function findAll(clinicId, options = {}) {
     ];
   }
 
-  // Получаем пациентов и общее количество
-  const [patients, total] = await Promise.all([
-    prisma.patient.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip,
-    }),
-    prisma.patient.count({ where }),
-  ]);
+  // Получаем всех пациентов (без пагинации для дедупликации)
+  const allPatients = await prisma.patient.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: {
+      _count: {
+        select: { appointments: true },
+      },
+    },
+  });
+
+  // Убираем дубликаты: группируем по телефону или email в рамках клиники
+  // Если у пациента есть несколько записей с одинаковым телефоном/email, берем самую новую
+  const uniquePatientsMap = new Map();
+  
+  for (const patient of allPatients) {
+    const key = patient.phone || patient.email || patient.id;
+    
+    if (!uniquePatientsMap.has(key)) {
+      uniquePatientsMap.set(key, patient);
+    } else {
+      // Если уже есть пациент с таким телефоном/email, берем более новую запись
+      const existing = uniquePatientsMap.get(key);
+      if (new Date(patient.createdAt) > new Date(existing.createdAt)) {
+        uniquePatientsMap.set(key, patient);
+      }
+    }
+  }
+
+  const uniquePatients = Array.from(uniquePatientsMap.values());
+  const total = uniquePatients.length;
+
+  // Применяем пагинацию после дедупликации
+  const paginatedPatients = uniquePatients.slice(skip, skip + limit);
 
   return {
-    patients,
+    patients: paginatedPatients,
     meta: {
       total,
       page,
@@ -75,7 +99,7 @@ export async function findById(clinicId, patientId) {
           },
         },
         orderBy: { appointmentDate: 'desc' },
-        take: 10, // Последние 10 приёмов
+        // Убрали take: 10 - теперь возвращаем ВСЕ приёмы для полной истории
       },
     },
   });
@@ -100,6 +124,82 @@ export async function findByPhone(clinicId, phone) {
       phone,
     },
   });
+}
+
+/**
+ * Найти пациента по телефону ИЛИ email в рамках клиники
+ * @param {string} clinicId - ID клиники
+ * @param {string} phone - Телефон
+ * @param {string} email - Email (опционально)
+ * @returns {Promise<object|null>} Patient или null
+ */
+export async function findByPhoneOrEmail(clinicId, phone, email = null) {
+  const where = {
+    clinicId,
+    OR: [
+      { phone },
+    ],
+  };
+
+  if (email) {
+    where.OR.push({ email });
+  }
+
+  return await prisma.patient.findFirst({
+    where,
+  });
+}
+
+/**
+ * Найти или создать пациента в клинике
+ * Ищет по телефону и email, если не найден - создает нового
+ * @param {string} clinicId - ID клиники
+ * @param {object} patientData - Данные пациента (name, phone, email, dateOfBirth, gender)
+ * @returns {Promise<object>} Найденный или созданный Patient
+ */
+export async function findOrCreatePatient(clinicId, patientData) {
+  console.log('🔵 [PATIENT SERVICE] Поиск или создание пациента:', { clinicId, phone: patientData.phone, email: patientData.email });
+
+  // Ищем существующего пациента по телефону или email
+  const existingPatient = await findByPhoneOrEmail(
+    clinicId,
+    patientData.phone,
+    patientData.email || null
+  );
+
+  if (existingPatient) {
+    console.log('✅ [PATIENT SERVICE] Найден существующий пациент:', existingPatient.id);
+    
+    // Обновляем данные пациента, если они изменились (например, имя или email)
+    const updateData = {};
+    if (patientData.name && patientData.name !== existingPatient.name) {
+      updateData.name = patientData.name;
+    }
+    if (patientData.email && patientData.email !== existingPatient.email) {
+      updateData.email = patientData.email;
+    }
+    if (patientData.dateOfBirth && patientData.dateOfBirth !== existingPatient.dateOfBirth) {
+      updateData.dateOfBirth = patientData.dateOfBirth;
+    }
+    if (patientData.gender && patientData.gender !== existingPatient.gender) {
+      updateData.gender = patientData.gender;
+    }
+
+    // Обновляем только если есть изменения
+    if (Object.keys(updateData).length > 0) {
+      console.log('🔵 [PATIENT SERVICE] Обновление данных пациента:', updateData);
+      return await prisma.patient.update({
+        where: { id: existingPatient.id },
+        data: updateData,
+      });
+    }
+
+    return existingPatient;
+  }
+
+  // Пациент не найден - создаем нового
+  console.log('🔵 [PATIENT SERVICE] Создание нового пациента');
+  return await create(clinicId, patientData);
 }
 
 /**
@@ -281,4 +381,120 @@ export async function remove(clinicId, patientId) {
   await prisma.patient.delete({
     where: { id: patientId },
   });
+}
+
+/**
+ * Получить все визиты пациентов клиники с полной информацией
+ * @param {string} clinicId - ID клиники
+ * @param {object} options - Опции (doctorId, search, status, page, limit)
+ * @returns {Promise<object>} { visits, meta }
+ * 
+ * ВАЖНО: По умолчанию возвращаются только завершенные приёмы (status='completed'),
+ * чтобы раздел Patients показывал только пациентов с завершенными визитами.
+ * Для получения всех визитов нужно явно указать status или передать status=null.
+ */
+export async function findAllVisits(clinicId, options = {}) {
+  const { doctorId, search, status, page = 1, limit = 50 } = options;
+  const skip = (page - 1) * limit;
+
+  // Построение where clause
+  const where = {
+    clinicId, // ВСЕГДА фильтруем по clinicId!
+  };
+
+  if (doctorId) where.doctorId = doctorId;
+  
+  // По умолчанию показываем только завершенные приёмы (completed)
+  // Если status === '' (пустая строка), это означает "показать все статусы" - не фильтруем
+  // Если status === undefined или null, используем дефолт 'completed'
+  // Если status указан (любое другое значение), используем его
+  if (status === '') {
+    // Пустая строка означает "показать все статусы" - не добавляем фильтр
+    // where.status не устанавливается
+  } else if (status !== undefined && status !== null) {
+    // Явно указанный статус
+    where.status = status;
+  } else {
+    // Дефолтное поведение: только завершенные приёмы
+    where.status = 'completed';
+  }
+
+  // Получаем все appointments с полной информацией о пациенте и враче
+  const [appointments, total] = await Promise.all([
+    prisma.appointment.findMany({
+      where,
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            email: true,
+            dateOfBirth: true,
+            gender: true,
+          },
+        },
+        doctor: {
+          select: {
+            id: true,
+            name: true,
+            specialization: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: { appointmentDate: 'desc' },
+      take: limit,
+      skip,
+    }),
+    prisma.appointment.count({ where }),
+  ]);
+
+  // Фильтруем по поиску (если указан) - фильтруем на уровне приложения
+  let filteredAppointments = appointments;
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filteredAppointments = appointments.filter(apt => {
+      return (
+        apt.patient.name.toLowerCase().includes(searchLower) ||
+        apt.patient.phone.includes(search) ||
+        (apt.patient.email && apt.patient.email.toLowerCase().includes(searchLower)) ||
+        (apt.doctor.name && apt.doctor.name.toLowerCase().includes(searchLower)) ||
+        (apt.reason && apt.reason.toLowerCase().includes(searchLower))
+      );
+    });
+  }
+
+  // Формируем результат в формате "визитов"
+  const visits = filteredAppointments.map(apt => ({
+    id: apt.id,
+    appointmentId: apt.id,
+    patientId: apt.patientId,
+    patientName: apt.patient.name,
+    patientPhone: apt.patient.phone,
+    patientEmail: apt.patient.email,
+    patientDateOfBirth: apt.patient.dateOfBirth,
+    patientGender: apt.patient.gender,
+    doctorId: apt.doctorId,
+    doctorName: apt.doctor.name,
+    doctorSpecialization: apt.doctor.specialization,
+    appointmentDate: apt.appointmentDate,
+    duration: apt.duration,
+    status: apt.status,
+    reason: apt.reason,
+    amount: apt.amount,
+    notes: apt.notes,
+    createdAt: apt.createdAt,
+    updatedAt: apt.updatedAt,
+  }));
+
+  return {
+    visits,
+    meta: {
+      total: search ? filteredAppointments.length : total,
+      page,
+      limit,
+      totalPages: Math.ceil((search ? filteredAppointments.length : total) / limit),
+    },
+  };
 }

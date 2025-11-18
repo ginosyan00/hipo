@@ -368,6 +368,7 @@ export async function create(clinicId, data) {
       duration: data.duration || 30,
       status: 'pending',
       reason: data.reason || null,
+      amount: data.amount || null,
       notes: notes,
       registeredAt: registeredAtDate, // Локальное время регистрации от пользователя (в UTC)
     },
@@ -403,9 +404,52 @@ export async function update(clinicId, appointmentId, data) {
   // Проверяем что приём существует
   const appointment = await findById(clinicId, appointmentId);
 
-  // Нельзя обновлять завершенные или отмененные приёмы
-  if (['completed', 'cancelled'].includes(appointment.status)) {
-    throw new Error(`Cannot update ${appointment.status} appointment`);
+  // Для завершенных приёмов разрешаем обновлять только amount (цену)
+  if (appointment.status === 'completed') {
+    const allowedFields = ['amount'];
+    const updateFields = Object.keys(data);
+    const hasOnlyAmount = updateFields.length === 1 && updateFields.includes('amount');
+    
+    if (!hasOnlyAmount) {
+      throw new Error('For completed appointments, only amount can be updated');
+    }
+    
+    // Валидация amount
+    if (data.amount !== null && data.amount !== undefined) {
+      if (typeof data.amount !== 'number' || data.amount < 0) {
+        throw new Error('Amount must be a positive number');
+      }
+    }
+    
+    // Обновляем только amount
+    const updated = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { amount: data.amount },
+      include: {
+        doctor: {
+          select: {
+            id: true,
+            name: true,
+            specialization: true,
+          },
+        },
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+        },
+      },
+    });
+    
+    console.log(`✅ [APPOINTMENT UPDATE] Сумма приёма ${appointmentId} обновлена на ${data.amount}`);
+    return updated;
+  }
+
+  // Нельзя обновлять отмененные приёмы
+  if (appointment.status === 'cancelled') {
+    throw new Error('Cannot update cancelled appointment');
   }
 
   // Если обновляется время/врач, проверяем доступность
@@ -458,9 +502,20 @@ export async function update(clinicId, appointmentId, data) {
  * @param {string} appointmentId - ID приёма
  * @param {string} newStatus - Новый статус
  * @param {string} userRole - Роль пользователя
+ * @param {number} amount - Сумма оплаты (опционально, для статуса completed)
+ * @param {string} cancellationReason - Причина отмены (обязательно при статусе cancelled)
+ * @param {Date} suggestedNewDate - Предложенное новое время (опционально при отмене)
  * @returns {Promise<object>} Обновленный приём
  */
-export async function updateStatus(clinicId, appointmentId, newStatus, userRole) {
+export async function updateStatus(
+  clinicId, 
+  appointmentId, 
+  newStatus, 
+  userRole, 
+  amount = null,
+  cancellationReason = null,
+  suggestedNewDate = null
+) {
   // Проверяем что приём существует
   const appointment = await findById(clinicId, appointmentId);
 
@@ -480,14 +535,46 @@ export async function updateStatus(clinicId, appointmentId, newStatus, userRole)
   if (newStatus === 'completed' && !['ADMIN', 'CLINIC', 'DOCTOR'].includes(normalizedRole)) {
     throw new Error('Only admin, clinic or doctor can mark appointment as completed');
   }
+
+  // Валидация: при отмене обязательно должна быть указана причина
+  if (newStatus === 'cancelled' && !cancellationReason) {
+    throw new Error('Cancellation reason is required when cancelling an appointment');
+  }
+
+  // Валидация amount: если переходит в completed, amount должен быть положительным числом
+  if (newStatus === 'completed' && amount !== null && amount !== undefined) {
+    if (typeof amount !== 'number' || amount < 0) {
+      throw new Error('Amount must be a positive number');
+    }
+  }
   
   // Логируем действие для аудита
-  console.log(`✅ [APPOINTMENT STATUS] ${normalizedRole} изменил статус приёма ${appointmentId} с '${currentStatus}' на '${newStatus}'`);
+  const amountLog = amount !== null && amount !== undefined ? ` с суммой ${amount}` : '';
+  const reasonLog = cancellationReason ? ` (причина: ${cancellationReason})` : '';
+  console.log(`✅ [APPOINTMENT STATUS] ${normalizedRole} изменил статус приёма ${appointmentId} с '${currentStatus}' на '${newStatus}'${amountLog}${reasonLog}`);
 
-  // Обновляем статус
+  // Подготавливаем данные для обновления
+  const updateData = { status: newStatus };
+  
+  // Если переходим в completed и передана сумма, сохраняем её
+  if (newStatus === 'completed' && amount !== null && amount !== undefined) {
+    updateData.amount = amount;
+  }
+
+  // Если отменяем, сохраняем причину и предложенное новое время
+  if (newStatus === 'cancelled') {
+    updateData.cancellationReason = cancellationReason;
+    if (suggestedNewDate) {
+      updateData.suggestedNewDate = suggestedNewDate instanceof Date 
+        ? suggestedNewDate 
+        : new Date(suggestedNewDate);
+    }
+  }
+
+  // Обновляем статус (и дополнительные данные, если указаны)
   const updated = await prisma.appointment.update({
     where: { id: appointmentId },
-    data: { status: newStatus },
+    data: updateData,
     include: {
       doctor: {
         select: {
@@ -501,10 +588,54 @@ export async function updateStatus(clinicId, appointmentId, newStatus, userRole)
           id: true,
           name: true,
           phone: true,
+          email: true,
         },
       },
     },
   });
+
+  // Если приём отменён, создаём уведомление для пациента
+  if (newStatus === 'cancelled') {
+    try {
+      const { create } = await import('./notification.service.js');
+      
+      // Формируем сообщение уведомления
+      const appointmentDate = new Date(appointment.appointmentDate);
+      const formattedDate = appointmentDate.toLocaleString('ru-RU', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      let message = `Ваш приём на ${formattedDate} был отменён.\n\nПричина: ${cancellationReason}`;
+      
+      if (suggestedNewDate) {
+        const suggestedDate = new Date(suggestedNewDate);
+        const formattedSuggestedDate = suggestedDate.toLocaleString('ru-RU', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        message += `\n\nПредложенное новое время: ${formattedSuggestedDate}`;
+      }
+
+      await create(clinicId, appointment.patient.id, {
+        type: 'cancellation',
+        title: 'Приём отменён',
+        message: message,
+        appointmentId: appointmentId,
+      });
+
+      console.log(`✅ [NOTIFICATION] Создано уведомление об отмене для пациента ${appointment.patient.id}`);
+    } catch (error) {
+      // Логируем ошибку, но не прерываем процесс отмены
+      console.error(`❌ [NOTIFICATION] Ошибка создания уведомления об отмене:`, error);
+    }
+  }
 
   return updated;
 }

@@ -9,6 +9,7 @@ import calendarIcon from '../../assets/icons/calendar.svg';
 import doctorIcon from '../../assets/icons/doctor.svg';
 import patientIcon from '../../assets/icons/patient.svg';
 import analyticsIcon from '../../assets/icons/analytics.svg';
+import settingsIcon from '../../assets/icons/settings.svg';
 import brainLogo from '../../assets/icons/brain-logo.svg';
 
 /**
@@ -69,6 +70,13 @@ export const Sidebar: React.FC = () => {
             <img src={analyticsIcon} alt="Analytics" className="w-6 h-6" />
             <span className="text-sm">Analytic</span>
           </NavLink>
+
+          {(user?.role === 'ADMIN' || user?.role === 'CLINIC') && (
+            <NavLink to="/dashboard/settings" className={navLinkClass}>
+              <img src={settingsIcon} alt="Settings" className="w-6 h-6" />
+              <span className="text-sm">Settings</span>
+            </NavLink>
+          )}
         </div>
       </nav>
 

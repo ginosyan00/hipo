@@ -5,7 +5,9 @@ import { Card, Button, Spinner } from '../../components/common';
 import { useAuthStore } from '../../store/useAuthStore';
 import { usePatientAppointments } from '../../hooks/usePatientAppointments';
 import { useClinics } from '../../hooks/usePublic';
+import { useNotifications, useUnreadNotificationsCount, useMarkNotificationAsRead, useMarkAllNotificationsAsRead } from '../../hooks/useNotifications';
 import { formatAppointmentDate, formatAppointmentTime } from '../../utils/dateFormat';
+import { Notification, NotificationType } from '../../types/api.types';
 
 /**
  * PatientDashboard
@@ -22,6 +24,16 @@ export const PatientDashboard: React.FC = () => {
 
   // Загружаем список клиник
   const { data: clinicsData, isLoading: isLoadingClinics } = useClinics();
+
+  // Загружаем уведомления
+  const { data: notificationsData, isLoading: isLoadingNotifications } = useNotifications({
+    limit: 10,
+  });
+  const { data: unreadCount = 0 } = useUnreadNotificationsCount();
+  const markAsReadMutation = useMarkNotificationAsRead();
+  const markAllAsReadMutation = useMarkAllNotificationsAsRead();
+
+  const notifications = notificationsData?.notifications || [];
 
   const appointments = appointmentsData?.appointments || [];
   const clinics = clinicsData?.data || [];
@@ -109,12 +121,12 @@ export const PatientDashboard: React.FC = () => {
           <Card padding="lg" className="hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs text-text-10 mb-2">Сообщения</p>
-                <h3 className="text-3xl font-bold text-orange-600">2</h3>
-                <p className="text-xs text-text-10 mt-1">новых</p>
+                <p className="text-xs text-text-10 mb-2">Уведомления</p>
+                <h3 className="text-3xl font-bold text-orange-600">{unreadCount}</h3>
+                <p className="text-xs text-text-10 mt-1">{unreadCount === 1 ? 'новое' : unreadCount > 1 && unreadCount < 5 ? 'новых' : 'новых'}</p>
               </div>
               <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <span className="text-2xl">💬</span>
+                <span className="text-2xl">🔔</span>
               </div>
             </div>
           </Card>
@@ -314,6 +326,93 @@ export const PatientDashboard: React.FC = () => {
                   </div>
                 </button>
               </div>
+            </Card>
+
+            {/* Notifications */}
+            <Card padding="lg">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-text-50">Уведомления</h2>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => markAllAsReadMutation.mutate()}
+                    isLoading={markAllAsReadMutation.isPending}
+                  >
+                    Отметить все прочитанными
+                  </Button>
+                )}
+              </div>
+              {isLoadingNotifications ? (
+                <div className="flex justify-center py-4">
+                  <Spinner />
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="text-center py-4 text-text-10">
+                  <div className="text-3xl mb-2">🔔</div>
+                  <p className="text-sm">Нет уведомлений</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {notifications.map((notification: Notification) => (
+                    <div
+                      key={notification.id}
+                      className={`p-3 border rounded-lg transition-all cursor-pointer ${
+                        notification.isRead
+                          ? 'border-stroke bg-bg-white'
+                          : 'border-orange-200 bg-orange-50'
+                      } hover:border-main-100 hover:bg-main-100 hover:bg-opacity-5`}
+                      onClick={() => {
+                        if (!notification.isRead) {
+                          markAsReadMutation.mutate({ id: notification.id });
+                        }
+                      }}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="mt-1">
+                          {notification.type === NotificationType.Cancellation && (
+                            <span className="text-lg">❌</span>
+                          )}
+                          {notification.type === NotificationType.Reschedule && (
+                            <span className="text-lg">🔄</span>
+                          )}
+                          {notification.type === NotificationType.Reminder && (
+                            <span className="text-lg">⏰</span>
+                          )}
+                          {notification.type === NotificationType.Confirmation && (
+                            <span className="text-lg">✅</span>
+                          )}
+                          {notification.type === NotificationType.Other && (
+                            <span className="text-lg">📢</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className={`text-sm font-medium ${notification.isRead ? 'text-text-50' : 'text-text-100'}`}>
+                              {notification.title}
+                            </h3>
+                            {!notification.isRead && (
+                              <span className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0 mt-1"></span>
+                            )}
+                          </div>
+                          <p className="text-xs text-text-10 mt-1 whitespace-pre-line">
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-text-10 mt-2">
+                            {new Date(notification.createdAt).toLocaleString('ru-RU', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             {/* Health Tips */}

@@ -62,10 +62,36 @@ export function useUpdateAppointmentStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      appointmentService.updateStatus(id, status),
-    onSuccess: () => {
+    mutationFn: ({ 
+      id, 
+      status, 
+      amount, 
+      cancellationReason, 
+      suggestedNewDate 
+    }: { 
+      id: string; 
+      status: string; 
+      amount?: number;
+      cancellationReason?: string;
+      suggestedNewDate?: string;
+    }) =>
+      appointmentService.updateStatus(id, status, amount, cancellationReason, suggestedNewDate),
+    onSuccess: (data, variables) => {
+      // Инвалидируем кеш приёмов
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      
+      // Если статус изменен на 'completed', также инвалидируем кеш визитов пациентов
+      // Это гарантирует, что завершенный приём сразу появится в разделе Patients
+      if (variables.status === 'completed') {
+        queryClient.invalidateQueries({ queryKey: ['patientVisits'] });
+        console.log('✅ [APPOINTMENTS] Приём завершен, обновляем кеш для раздела Patients');
+      }
+      
+      // Если статус изменен на 'cancelled', инвалидируем кеш уведомлений
+      if (variables.status === 'cancelled') {
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        console.log('✅ [APPOINTMENTS] Приём отменён, обновляем кеш уведомлений');
+      }
     },
   });
 }

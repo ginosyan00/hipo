@@ -6,6 +6,7 @@ import { formatAppointmentDateTime } from '../../utils/dateFormat';
 interface AppointmentsTableProps {
   appointments: Appointment[];
   onStatusChange: (id: string, status: string) => void;
+  onEditAmount?: (appointment: Appointment) => void;
   loadingAppointments: Record<string, string>;
   errorMessages: Record<string, string>;
 }
@@ -17,6 +18,7 @@ interface AppointmentsTableProps {
 export const AppointmentsTable: React.FC<AppointmentsTableProps> = ({
   appointments,
   onStatusChange,
+  onEditAmount,
   loadingAppointments,
   errorMessages,
 }) => {
@@ -112,6 +114,9 @@ export const AppointmentsTable: React.FC<AppointmentsTableProps> = ({
               Длительность
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+              Сумма
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
               Статус
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
@@ -167,6 +172,15 @@ export const AppointmentsTable: React.FC<AppointmentsTableProps> = ({
                 {appointment.duration} мин
               </td>
               <td className="px-4 py-3 text-sm">
+                {appointment.amount ? (
+                  <span className="font-semibold text-text-100">
+                    {appointment.amount.toLocaleString('ru-RU')} ֏
+                  </span>
+                ) : (
+                  <span className="text-text-10">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-sm">
                 {getStatusBadge(appointment.status)}
               </td>
               <td className="px-4 py-3 text-sm">
@@ -210,12 +224,23 @@ export const AppointmentsTable: React.FC<AppointmentsTableProps> = ({
                     </Button>
                   )}
 
-                  {/* Информация для завершенных/отмененных приёмов */}
-                  {['completed', 'cancelled'].includes(appointment.status) && (
+                  {/* Кнопка редактирования суммы - только для завершенных приёмов */}
+                  {appointment.status === 'completed' && onEditAmount && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onEditAmount(appointment)}
+                      isLoading={loadingAppointments[appointment.id] === 'updating'}
+                      disabled={!!loadingAppointments[appointment.id]}
+                    >
+                      {appointment.amount ? 'Изменить сумму' : 'Добавить сумму'}
+                    </Button>
+                  )}
+
+                  {/* Информация для отмененных приёмов */}
+                  {appointment.status === 'cancelled' && (
                     <div className="text-xs text-text-10 text-center py-2">
-                      {appointment.status === 'completed' 
-                        ? '✅ Завершён' 
-                        : '❌ Отменён'}
+                      ❌ Отменён
                     </div>
                   )}
 

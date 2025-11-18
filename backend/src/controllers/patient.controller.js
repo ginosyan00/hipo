@@ -38,6 +38,39 @@ export async function getAll(req, res, next) {
 }
 
 /**
+ * GET /api/v1/patients/visits
+ * Получить все визиты пациентов с полной информацией
+ */
+export async function getAllVisits(req, res, next) {
+  try {
+    const { doctorId, search, status, page, limit } = req.query;
+    const clinicId = req.user.clinicId;
+
+    if (!clinicId) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Clinic ID is required',
+        },
+      });
+    }
+
+    const result = await patientService.findAllVisits(clinicId, {
+      doctorId,
+      search,
+      status,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 50,
+    });
+
+    successResponse(res, result, 200);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * GET /api/v1/patients/:id
  * Получить пациента по ID
  */

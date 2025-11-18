@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
 
@@ -13,6 +14,7 @@ import arrowDownIcon from '../../assets/icons/arrow-down.svg';
  * Верхняя панель с поиском и профилем
  */
 export const Header: React.FC = () => {
+  const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const logout = useAuthStore(state => state.logout);
   const toggleSidebar = useUIStore(state => state.toggleSidebar);
@@ -57,9 +59,14 @@ export const Header: React.FC = () => {
           </button>
 
           {/* Settings */}
-          <button className="p-2 rounded-sm hover:bg-bg-primary transition-smooth">
-            <img src={settingsIcon} alt="Settings" className="w-6 h-6" />
-          </button>
+          {(user?.role === 'ADMIN' || user?.role === 'CLINIC') && (
+            <button
+              onClick={() => navigate('/dashboard/settings')}
+              className="p-2 rounded-sm hover:bg-bg-primary transition-smooth"
+            >
+              <img src={settingsIcon} alt="Settings" className="w-6 h-6" />
+            </button>
+          )}
 
           {/* Profile Dropdown */}
           <div className="relative">

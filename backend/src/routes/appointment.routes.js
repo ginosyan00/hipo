@@ -33,11 +33,12 @@ router.get('/:id', appointmentController.getById);
 /**
  * POST /api/v1/appointments
  * Создать новый приём
- * Доступ: ADMIN, DOCTOR
+ * Доступ: ADMIN, CLINIC, DOCTOR
+ * CLINIC - администратор клиники, имеет те же права что и DOCTOR
  */
 router.post(
   '/',
-  authorize('ADMIN', 'DOCTOR'),
+  authorize('ADMIN', 'CLINIC', 'DOCTOR'),
   validate(createAppointmentSchema),
   appointmentController.create
 );
@@ -45,11 +46,12 @@ router.post(
 /**
  * PUT /api/v1/appointments/:id
  * Обновить приём
- * Доступ: ADMIN, DOCTOR
+ * Доступ: ADMIN, CLINIC, DOCTOR
+ * CLINIC - администратор клиники, имеет те же права что и DOCTOR
  */
 router.put(
   '/:id',
-  authorize('ADMIN', 'DOCTOR'),
+  authorize('ADMIN', 'CLINIC', 'DOCTOR'),
   validate(updateAppointmentSchema),
   appointmentController.update
 );

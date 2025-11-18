@@ -4,9 +4,12 @@ import { NewDashboardLayout } from '../../components/dashboard/NewDashboardLayou
 import { Button, Card, Spinner } from '../../components/common';
 import { AppointmentsTable } from '../../components/dashboard/AppointmentsTable';
 import { CreateAppointmentModal } from '../../components/dashboard/CreateAppointmentModal';
-import { useAppointments, useUpdateAppointmentStatus } from '../../hooks/useAppointments';
+import { CompleteAppointmentModal } from '../../components/dashboard/CompleteAppointmentModal';
+import { CancelAppointmentModal } from '../../components/dashboard/CancelAppointmentModal';
+import { EditAmountModal } from '../../components/dashboard/EditAmountModal';
+import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '../../hooks/useAppointments';
 import { userService } from '../../services/user.service';
-import { User } from '../../types/api.types';
+import { User, Appointment } from '../../types/api.types';
 import { formatAppointmentDateTime } from '../../utils/dateFormat';
 
 /**
@@ -32,6 +35,18 @@ export const AppointmentsPage: React.FC = () => {
   
   // Модальное окно создания приёма
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  
+  // Модальное окно завершения приёма
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [selectedAppointmentForComplete, setSelectedAppointmentForComplete] = useState<Appointment | null>(null);
+  
+  // Модальное окно отмены приёма
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [selectedAppointmentForCancel, setSelectedAppointmentForCancel] = useState<Appointment | null>(null);
+  
+  // Модальное окно редактирования суммы
+  const [isEditAmountModalOpen, setIsEditAmountModalOpen] = useState(false);
+  const [selectedAppointmentForEdit, setSelectedAppointmentForEdit] = useState<Appointment | null>(null);
   
   const [doctors, setDoctors] = useState<User[]>([]);
   const [isDoctorsLoading, setIsDoctorsLoading] = useState(true);
@@ -89,8 +104,11 @@ export const AppointmentsPage: React.FC = () => {
     setSearchParams(params, { replace: true });
   }, [statusFilter, dateFilter, doctorFilter, timeFilter, weekFilter, categoryFilter, setSearchParams]);
 
+  // По умолчанию исключаем завершенные приёмы (completed) из раздела Appointments
+  // Они должны отображаться только в разделе Patients
+  // Но если выбран фильтр "Все статусы" (пустая строка), показываем все приёмы
   const { data, isLoading, isFetching, error } = useAppointments({
-    status: statusFilter || undefined,
+    status: statusFilter && statusFilter.trim() !== '' ? statusFilter : undefined,
     date: dateFilter || undefined,
     doctorId: doctorFilter || undefined,
     time: timeFilter || undefined,
@@ -98,6 +116,25 @@ export const AppointmentsPage: React.FC = () => {
     category: categoryFilter || undefined,
   });
   const updateStatusMutation = useUpdateAppointmentStatus();
+  const updateAppointmentMutation = useUpdateAppointment();
+
+  // Фильтруем завершенные приёмы, если статус не выбран явно
+  // Это гарантирует, что завершенные приёмы не отображаются в разделе Appointments
+  // НО: если выбран фильтр "Все статусы" (statusFilter === ''), показываем все приёмы
+  const filteredAppointments = React.useMemo(() => {
+    if (!data?.appointments) return [];
+    
+    // Если статус выбран явно (не пустая строка), используем данные как есть
+    // API уже отфильтровал по статусу
+    if (statusFilter && statusFilter.trim() !== '') {
+      return data.appointments;
+    }
+    
+    // Если выбран "Все статусы" (пустая строка) или статус не установлен
+    // Показываем все приёмы без фильтрации
+    // Это позволяет видеть все приёмы, включая завершенные и отмененные
+    return data.appointments;
+  }, [data?.appointments, statusFilter]);
 
   /**
    * Обработчик изменения статуса приёма
@@ -105,6 +142,27 @@ export const AppointmentsPage: React.FC = () => {
    * @param newStatus - Новый статус (confirmed, cancelled, completed)
    */
   const handleStatusChange = async (id: string, newStatus: string) => {
+    // Если статус - completed, открываем модальное окно для ввода суммы
+    if (newStatus === 'completed') {
+      const appointment = appointments.find(a => a.id === id);
+      if (appointment) {
+        setSelectedAppointmentForComplete(appointment);
+        setIsCompleteModalOpen(true);
+      }
+      return;
+    }
+
+    // Если статус - cancelled, открываем модальное окно для ввода причины отмены
+    if (newStatus === 'cancelled') {
+      const appointment = appointments.find(a => a.id === id);
+      if (appointment) {
+        setSelectedAppointmentForCancel(appointment);
+        setIsCancelModalOpen(true);
+      }
+      return;
+    }
+
+    // Для других статусов - обычное изменение
     // Очищаем предыдущую ошибку для этого приёма
     setErrorMessages(prev => {
       const updated = { ...prev };
@@ -139,6 +197,83 @@ export const AppointmentsPage: React.FC = () => {
     }
   };
 
+  /**
+   * Обработчик завершения приёма с суммой
+   */
+  const handleComplete = async (appointmentId: string, amount: number) => {
+    setLoadingAppointments(prev => ({ ...prev, [appointmentId]: 'completed' }));
+    try {
+      await updateStatusMutation.mutateAsync({ id: appointmentId, status: 'completed', amount });
+      setIsCompleteModalOpen(false);
+      setSelectedAppointmentForComplete(null);
+      setLoadingAppointments(prev => {
+        const updated = { ...prev };
+        delete updated[appointmentId];
+        return updated;
+      });
+    } catch (err: any) {
+      console.error('❌ [APPOINTMENTS] Ошибка завершения приёма:', err);
+      throw err;
+    }
+  };
+
+  /**
+   * Обработчик отмены приёма с причиной
+   */
+  const handleCancel = async (cancellationReason: string, suggestedNewDate?: string) => {
+    if (!selectedAppointmentForCancel) return;
+    
+    const appointmentId = selectedAppointmentForCancel.id;
+    setLoadingAppointments(prev => ({ ...prev, [appointmentId]: 'cancelled' }));
+    
+    try {
+      await updateStatusMutation.mutateAsync({ 
+        id: appointmentId, 
+        status: 'cancelled',
+        cancellationReason,
+        suggestedNewDate
+      });
+      setIsCancelModalOpen(false);
+      setSelectedAppointmentForCancel(null);
+      setLoadingAppointments(prev => {
+        const updated = { ...prev };
+        delete updated[appointmentId];
+        return updated;
+      });
+    } catch (err: any) {
+      console.error('❌ [APPOINTMENTS] Ошибка отмены приёма:', err);
+      throw err;
+    }
+  };
+
+  /**
+   * Обработчик редактирования суммы
+   */
+  const handleEditAmount = (appointment: Appointment) => {
+    setSelectedAppointmentForEdit(appointment);
+    setIsEditAmountModalOpen(true);
+  };
+
+  /**
+   * Обработчик сохранения новой суммы
+   */
+  const handleUpdateAmount = async (appointmentId: string, amount: number) => {
+    setLoadingAppointments(prev => ({ ...prev, [appointmentId]: 'updating' }));
+    try {
+      await updateAppointmentMutation.mutateAsync({ id: appointmentId, data: { amount } });
+      setIsEditAmountModalOpen(false);
+      setSelectedAppointmentForEdit(null);
+      setLoadingAppointments(prev => {
+        const updated = { ...prev };
+        delete updated[appointmentId];
+        return updated;
+      });
+    } catch (err: any) {
+      console.error('❌ [APPOINTMENTS] Ошибка обновления суммы:', err);
+      throw err;
+    }
+  };
+
   // Показываем ошибку только если это первая загрузка и есть ошибка
   if (error && !data) {
     return (
@@ -152,7 +287,8 @@ export const AppointmentsPage: React.FC = () => {
     );
   }
 
-  const appointments = data?.appointments || [];
+  // Используем отфильтрованные приёмы (исключаем completed по умолчанию)
+  const appointments = filteredAppointments;
   
   // Показываем спиннер только при первой загрузке (когда нет данных)
   const isInitialLoading = isLoading && !data;
@@ -194,13 +330,15 @@ export const AppointmentsPage: React.FC = () => {
     }
   }, [appointments]);
 
-  // Статистика по статусам
+  // Статистика по статусам (считаем из всех данных, включая completed, для правильной статистики)
+  // Но отображаем только те, которые не отфильтрованы
+  const allAppointments = data?.appointments || [];
   const stats = {
-    total: appointments.length,
-    pending: appointments.filter(a => a.status === 'pending').length,
-    confirmed: appointments.filter(a => a.status === 'confirmed').length,
-    completed: appointments.filter(a => a.status === 'completed').length,
-    cancelled: appointments.filter(a => a.status === 'cancelled').length,
+    total: allAppointments.length,
+    pending: allAppointments.filter(a => a.status === 'pending').length,
+    confirmed: allAppointments.filter(a => a.status === 'confirmed').length,
+    completed: allAppointments.filter(a => a.status === 'completed').length,
+    cancelled: allAppointments.filter(a => a.status === 'cancelled').length,
   };
 
   const getStatusBadge = (status: string) => {
@@ -244,7 +382,10 @@ export const AppointmentsPage: React.FC = () => {
           <div>
             <h1 className="text-2xl font-semibold text-text-100">Приёмы</h1>
             <p className="text-text-10 text-sm mt-1">
-              Всего: {data?.meta.total || 0} назначений
+              {statusFilter 
+                ? `Всего: ${data?.meta.total || 0} назначений`
+                : `Активных: ${appointments.length} из ${data?.meta.total || 0} назначений`
+              }
             </p>
           </div>
           <div className="flex gap-3">
@@ -432,6 +573,7 @@ export const AppointmentsPage: React.FC = () => {
             <AppointmentsTable
               appointments={displayedAppointments}
               onStatusChange={handleStatusChange}
+              onEditAmount={handleEditAmount}
               loadingAppointments={loadingAppointments}
               errorMessages={errorMessages}
             />
@@ -526,6 +668,11 @@ export const AppointmentsPage: React.FC = () => {
                         </p>
                       )}
                       <p className="text-text-10 mt-1">⏱️ Длительность: {appointment.duration} мин</p>
+                      {appointment.amount && (
+                        <p className="text-text-10 mt-1">
+                          💰 Сумма: <span className="font-semibold text-text-100">{appointment.amount.toLocaleString('ru-RU')} ֏</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -600,12 +747,23 @@ export const AppointmentsPage: React.FC = () => {
                     </Button>
                   )}
 
-                  {/* Информация для завершенных/отмененных приёмов */}
-                  {['completed', 'cancelled'].includes(appointment.status) && (
+                  {/* Кнопка редактирования суммы - только для завершенных приёмов */}
+                  {appointment.status === 'completed' && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleEditAmount(appointment)}
+                      isLoading={loadingAppointments[appointment.id] === 'updating'}
+                      disabled={!!loadingAppointments[appointment.id]}
+                    >
+                      {appointment.amount ? 'Изменить сумму' : 'Добавить сумму'}
+                    </Button>
+                  )}
+
+                  {/* Информация для отмененных приёмов */}
+                  {appointment.status === 'cancelled' && (
                     <div className="text-xs text-text-10 text-center py-2">
-                      {appointment.status === 'completed' 
-                        ? '✅ Приём завершён' 
-                        : '❌ Приём отменён'}
+                      ❌ Приём отменён
                     </div>
                   )}
                 </div>
@@ -624,6 +782,42 @@ export const AppointmentsPage: React.FC = () => {
           // Обновление произойдет автоматически через React Query
           console.log('✅ [APPOINTMENTS] Приём успешно создан');
         }}
+      />
+
+      {/* Модальное окно завершения приёма */}
+      <CompleteAppointmentModal
+        isOpen={isCompleteModalOpen}
+        onClose={() => {
+          setIsCompleteModalOpen(false);
+          setSelectedAppointmentForComplete(null);
+        }}
+        appointment={selectedAppointmentForComplete}
+        onComplete={handleComplete}
+        isLoading={selectedAppointmentForComplete ? loadingAppointments[selectedAppointmentForComplete.id] === 'completed' : false}
+      />
+
+      {/* Модальное окно отмены приёма */}
+      <CancelAppointmentModal
+        isOpen={isCancelModalOpen}
+        onClose={() => {
+          setIsCancelModalOpen(false);
+          setSelectedAppointmentForCancel(null);
+        }}
+        appointment={selectedAppointmentForCancel}
+        onConfirm={handleCancel}
+        isLoading={selectedAppointmentForCancel ? loadingAppointments[selectedAppointmentForCancel.id] === 'cancelled' : false}
+      />
+
+      {/* Модальное окно редактирования суммы */}
+      <EditAmountModal
+        isOpen={isEditAmountModalOpen}
+        onClose={() => {
+          setIsEditAmountModalOpen(false);
+          setSelectedAppointmentForEdit(null);
+        }}
+        appointment={selectedAppointmentForEdit}
+        onUpdate={handleUpdateAmount}
+        isLoading={selectedAppointmentForEdit ? loadingAppointments[selectedAppointmentForEdit.id] === 'updating' : false}
       />
       </div>
     </NewDashboardLayout>

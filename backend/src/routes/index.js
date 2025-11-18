@@ -3,6 +3,8 @@ import authRoutes from './auth.routes.js';
 import patientRoutes from './patient.routes.js';
 import userRoutes from './user.routes.js';
 import appointmentRoutes from './appointment.routes.js';
+import notificationRoutes from './notification.routes.js';
+import clinicRoutes from './clinic.routes.js';
 import publicRoutes from './public.routes.js';
 
 const router = express.Router();
@@ -26,6 +28,12 @@ router.use('/users', userRoutes);
 
 // Appointment routes (требуют авторизацию)
 router.use('/appointments', appointmentRoutes);
+
+// Notification routes (требуют авторизацию)
+router.use('/notifications', notificationRoutes);
+
+// Clinic routes (требуют авторизацию)
+router.use('/clinic', clinicRoutes);
 
 // Health check (для удобства, дублирует основной health endpoint)
 router.get('/health', (req, res) => {

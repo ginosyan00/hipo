@@ -74,6 +74,24 @@ export interface Clinic {
   workingHours?: WorkingHours;
   createdAt: Date;
   updatedAt: Date;
+  settings?: ClinicSettings;
+}
+
+export interface ClinicSettings {
+  id: string;
+  clinicId: string;
+  timezone: string;
+  language: 'ru' | 'en' | 'am';
+  currency: 'AMD' | 'RUB' | 'USD';
+  defaultAppointmentDuration: number;
+  emailNotificationsEnabled: boolean;
+  smsNotificationsEnabled: boolean;
+  appointmentReminderHours: number;
+  notifyNewAppointments: boolean;
+  notifyCancellations: boolean;
+  notifyConfirmations: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface WorkingHours {
@@ -153,6 +171,7 @@ export interface Patient {
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
+  appointments?: Appointment[]; // Полная история визитов
 }
 
 export enum Gender {
@@ -171,7 +190,10 @@ export interface Appointment {
   status: AppointmentStatus;
   notes?: string;
   reason?: string;
+  amount?: number; // Сумма оплаты
   registeredAt?: Date | string; // Время когда пациент был на сайте и отправил регистрацию (локальное время пользователя)
+  cancellationReason?: string; // Причина отмены приёма
+  suggestedNewDate?: Date | string; // Предложенное новое время приёма
   createdAt: Date;
   updatedAt: Date;
   doctor?: {
@@ -192,6 +214,49 @@ export enum AppointmentStatus {
   Confirmed = 'confirmed',
   Completed = 'completed',
   Cancelled = 'cancelled',
+}
+
+export interface PatientVisit {
+  id: string;
+  appointmentId: string;
+  patientId: string;
+  patientName: string;
+  patientPhone: string;
+  patientEmail?: string;
+  patientDateOfBirth?: Date | string;
+  patientGender?: string;
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialization?: string;
+  appointmentDate: Date | string;
+  duration: number;
+  status: AppointmentStatus;
+  reason?: string;
+  amount?: number;
+  notes?: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface Notification {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  isRead: boolean;
+  appointmentId?: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export enum NotificationType {
+  Cancellation = 'cancellation',
+  Reschedule = 'reschedule',
+  Reminder = 'reminder',
+  Confirmation = 'confirmation',
+  Other = 'other',
 }
 
 

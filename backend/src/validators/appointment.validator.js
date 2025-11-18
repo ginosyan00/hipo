@@ -24,6 +24,9 @@ export const createAppointmentSchema = Joi.object({
     'number.max': 'Duration must be at most 240 minutes',
   }),
   reason: Joi.string().max(500).allow('').optional(),
+  amount: Joi.number().min(0).optional().messages({
+    'number.min': 'Amount must be a positive number',
+  }),
   notes: Joi.string().max(1000).allow('').optional(),
   registeredAt: Joi.date().iso().optional().messages({
     'date.base': 'RegisteredAt must be a valid date',
@@ -39,11 +42,15 @@ export const updateAppointmentSchema = Joi.object({
   appointmentDate: Joi.date().iso().greater('now').optional(),
   duration: Joi.number().integer().min(15).max(240).optional(),
   reason: Joi.string().max(500).allow('').optional(),
+  amount: Joi.number().min(0).optional().messages({
+    'number.min': 'Amount must be a positive number',
+  }),
   notes: Joi.string().max(1000).allow('').optional(),
 }).min(1); // Хотя бы одно поле обязательно
 
 /**
  * Изменение статуса
+ * При статусе 'completed' можно передать amount (сумму оплаты)
  */
 export const updateStatusSchema = Joi.object({
   status: Joi.string()
@@ -53,5 +60,14 @@ export const updateStatusSchema = Joi.object({
       'any.only': 'Status must be one of: pending, confirmed, completed, cancelled',
       'any.required': 'Status is required',
     }),
+  amount: Joi.number().min(0).optional().messages({
+    'number.min': 'Amount must be a positive number',
+    'number.base': 'Amount must be a number',
+  }),
+}).when(Joi.object({ status: Joi.string().valid('completed') }), {
+  then: Joi.object({
+    status: Joi.string().valid('completed').required(),
+    amount: Joi.number().min(0).optional(), // Опционально, но рекомендуется при завершении
+  }),
 });
 

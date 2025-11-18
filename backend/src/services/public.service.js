@@ -1,5 +1,5 @@
 import { prisma } from '../config/database.js';
-import { findByPhone, create as createPatient } from './patient.service.js';
+import { findOrCreatePatient } from './patient.service.js';
 import { create as createAppointment } from './appointment.service.js';
 
 /**
@@ -173,17 +173,13 @@ export async function createPublicAppointment(
     throw new Error('Doctor not found or inactive');
   }
 
-  // 3. Находим пациента по телефону или создаем нового
-  let patient = await findByPhone(clinic.id, patientData.phone);
-
-  if (!patient) {
-    // Создаем нового пациента
-    patient = await createPatient(clinic.id, {
-      name: patientData.name,
-      phone: patientData.phone,
-      email: patientData.email || null,
-    });
-  }
+  // 3. Находим пациента по телефону/email или создаем нового
+  // Используем умную функцию findOrCreatePatient для избежания дубликатов
+  const patient = await findOrCreatePatient(clinic.id, {
+    name: patientData.name,
+    phone: patientData.phone,
+    email: patientData.email || null,
+  });
 
   // 4. Создаем приём со статусом 'pending'
   const appointment = await createAppointment(clinic.id, {

@@ -61,6 +61,22 @@ export const patientService = {
     });
     return data.data;
   },
+
+  /**
+   * Получить все визиты пациентов с полной информацией
+   */
+  async getAllVisits(params?: {
+    doctorId?: string;
+    search?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedResponse<any>> {
+    const { data } = await api.get<ApiResponse<PaginatedResponse<any>>>('/patients/visits', {
+      params,
+    });
+    return data.data;
+  },
 };
 
 
