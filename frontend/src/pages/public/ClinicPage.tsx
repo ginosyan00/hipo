@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Button, Card, Input, Modal, Spinner, BackButton } from '../../components/common';
+import { Button, Card, Input, Modal, Spinner, BackButton, Calendar } from '../../components/common';
 import { useClinic, useClinicDoctors, useCreatePublicAppointment } from '../../hooks/usePublic';
 
 // Import icons
@@ -26,34 +26,43 @@ export const ClinicPage: React.FC = () => {
     patientName: '',
     patientPhone: '',
     patientEmail: '',
-    appointmentDate: '',
-    appointmentTime: '',
     reason: '',
   });
+  
+  // Calendar state
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string>('');
 
   const handleOpenModal = (doctorId: string) => {
     setSelectedDoctor(doctorId);
     setIsModalOpen(true);
     setSuccessMessage('');
+    // Сброс календаря при открытии модального окна
+    setSelectedDate(null);
+    setSelectedTime('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Проверка выбранной даты и времени
+    if (!selectedDate || !selectedTime) {
+      alert('Пожалуйста, выберите дату и время приёма');
+      return;
+    }
+
     try {
-      // ИСПРАВЛЕНИЕ: Создаем время БЕЗ Z (как локальное), затем конвертируем в UTC
-      // Это гарантирует, что время будет правильно сохраняться и отображаться
-      const appointmentDateTimeString = `${formData.appointmentDate}T${formData.appointmentTime}:00`;
-      const appointmentDateTime = new Date(appointmentDateTimeString);
+      // Создаем дату и время из выбранных значений
+      const [hours, minutes] = selectedTime.split(':').map(Number);
+      const appointmentDateTime = new Date(selectedDate);
+      appointmentDateTime.setHours(hours, minutes, 0, 0);
       
       // Конвертируем в UTC для сохранения в БД
       const appointmentDateTimeUTC = appointmentDateTime.toISOString();
       
       // Записываем локальное время пользователя в момент отправки формы
-      // Сохраняем в формате ISO без конвертации в UTC, чтобы сохранить точное локальное время клиента
-      // Формат: YYYY-MM-DDTHH:mm:ss (без Z, чтобы не конвертировалось в UTC)
       const now = new Date();
-      const timezoneOffset = -now.getTimezoneOffset(); // Получаем смещение в минутах (инвертируем знак)
+      const timezoneOffset = -now.getTimezoneOffset();
       const offsetHours = Math.floor(Math.abs(timezoneOffset) / 60);
       const offsetMinutes = Math.abs(timezoneOffset) % 60;
       const offsetSign = timezoneOffset >= 0 ? '+' : '-';
@@ -79,10 +88,10 @@ export const ClinicPage: React.FC = () => {
         patientName: '',
         patientPhone: '',
         patientEmail: '',
-        appointmentDate: '',
-        appointmentTime: '',
         reason: '',
       });
+      setSelectedDate(null);
+      setSelectedTime('');
     } catch (err: any) {
       alert(err.message || 'Ошибка создания заявки');
     }
@@ -304,22 +313,23 @@ export const ClinicPage: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Дата"
-                type="date"
-                value={formData.appointmentDate}
-                onChange={e => setFormData({ ...formData, appointmentDate: e.target.value })}
-                required
-                min={new Date().toISOString().split('T')[0]}
+            {/* Calendar Component */}
+            <div>
+              <Calendar
+                selectedDate={selectedDate}
+                onDateSelect={(date) => {
+                  setSelectedDate(date);
+                  setSelectedTime(''); // Сбрасываем время при выборе новой даты
+                }}
+                selectedTime={selectedTime}
+                onTimeSelect={setSelectedTime}
+                minDate={new Date()}
               />
-              <Input
-                label="Время"
-                type="time"
-                value={formData.appointmentTime}
-                onChange={e => setFormData({ ...formData, appointmentTime: e.target.value })}
-                required
-              />
+              {(!selectedDate || !selectedTime) && (
+                <p className="mt-2 text-xs text-text-10">
+                  {!selectedDate ? 'Выберите дату' : 'Выберите время'}
+                </p>
+              )}
             </div>
 
             <div>

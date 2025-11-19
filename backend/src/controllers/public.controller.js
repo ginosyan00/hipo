@@ -59,6 +59,22 @@ export async function getClinicDoctors(req, res, next) {
 }
 
 /**
+ * GET /api/v1/public/clinics/:slug/doctors/:doctorId
+ * Получить врача по ID
+ */
+export async function getClinicDoctor(req, res, next) {
+  try {
+    const { slug, doctorId } = req.params;
+
+    const doctor = await publicService.findClinicDoctor(slug, doctorId);
+
+    successResponse(res, doctor, 200);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * POST /api/v1/public/appointments
  * Создать публичную заявку на приём
  */

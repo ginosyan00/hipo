@@ -6,6 +6,7 @@ import appointmentRoutes from './appointment.routes.js';
 import notificationRoutes from './notification.routes.js';
 import clinicRoutes from './clinic.routes.js';
 import publicRoutes from './public.routes.js';
+import analyticsRoutes from './analytics.routes.js';
 
 const router = express.Router();
 
@@ -34,6 +35,9 @@ router.use('/notifications', notificationRoutes);
 
 // Clinic routes (требуют авторизацию)
 router.use('/clinic', clinicRoutes);
+
+// Analytics routes (требуют авторизацию)
+router.use('/analytics', analyticsRoutes);
 
 // Health check (для удобства, дублирует основной health endpoint)
 router.get('/health', (req, res) => {

@@ -13,6 +13,14 @@ import { prisma } from '../config/database.js';
  * @returns {Promise<object>} { notifications, meta }
  */
 export async function findAll(clinicId, patientId, options = {}) {
+  // Валидация входных параметров
+  if (!clinicId) {
+    throw new Error('Clinic ID is required');
+  }
+  if (!patientId) {
+    throw new Error('Patient ID is required');
+  }
+
   const { isRead, type, page = 1, limit = 20 } = options;
   const skip = (page - 1) * limit;
 
@@ -30,6 +38,8 @@ export async function findAll(clinicId, patientId, options = {}) {
     where.type = type;
   }
 
+  console.log('🔵 [NOTIFICATION SERVICE] findAll запрос:', { where, skip, limit });
+
   // Получаем уведомления и общее количество
   const [notifications, total] = await Promise.all([
     prisma.notification.findMany({
@@ -40,6 +50,8 @@ export async function findAll(clinicId, patientId, options = {}) {
     }),
     prisma.notification.count({ where }),
   ]);
+
+  console.log('✅ [NOTIFICATION SERVICE] findAll результат:', { count: notifications.length, total });
 
   return {
     notifications,
@@ -175,6 +187,16 @@ export async function markAllAsRead(clinicId, patientId) {
  * @returns {Promise<number>} Количество непрочитанных уведомлений
  */
 export async function getUnreadCount(clinicId, patientId) {
+  // Валидация входных параметров
+  if (!clinicId) {
+    throw new Error('Clinic ID is required');
+  }
+  if (!patientId) {
+    throw new Error('Patient ID is required');
+  }
+
+  console.log('🔵 [NOTIFICATION SERVICE] getUnreadCount запрос:', { clinicId, patientId });
+
   const count = await prisma.notification.count({
     where: {
       clinicId,
@@ -182,6 +204,8 @@ export async function getUnreadCount(clinicId, patientId) {
       isRead: false,
     },
   });
+
+  console.log('✅ [NOTIFICATION SERVICE] getUnreadCount результат:', count);
 
   return count;
 }

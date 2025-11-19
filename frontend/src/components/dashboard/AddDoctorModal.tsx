@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal, Button, Input, Card } from '../common';
 import { userService } from '../../services/user.service';
+import { clinicService } from '../../services/clinic.service';
 
 /**
  * AddDoctorModal Component
@@ -15,6 +17,8 @@ interface AddDoctorModalProps {
 }
 
 export const AddDoctorModal: React.FC<AddDoctorModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const navigate = useNavigate();
+  
   // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -37,7 +41,7 @@ export const AddDoctorModal: React.FC<AddDoctorModalProps> = ({ isOpen, onClose,
     try {
       console.log('🔵 [ADD DOCTOR MODAL] Создание врача:', { name, email });
 
-      await userService.createDoctor({
+      const createdDoctor = await userService.createDoctor({
         name,
         email,
         password,
@@ -49,7 +53,11 @@ export const AddDoctorModal: React.FC<AddDoctorModalProps> = ({ isOpen, onClose,
         gender,
       });
 
-      console.log('✅ [ADD DOCTOR MODAL] Врач успешно создан');
+      console.log('✅ [ADD DOCTOR MODAL] Врач успешно создан:', createdDoctor.id);
+
+      // Получаем slug клиники для редиректа
+      const clinic = await clinicService.getClinic();
+      const clinicSlug = clinic.slug;
 
       // Reset form
       setName('');
@@ -65,6 +73,9 @@ export const AddDoctorModal: React.FC<AddDoctorModalProps> = ({ isOpen, onClose,
       // Notify parent
       onSuccess();
       onClose();
+
+      // Редирект на страницу врача через landing
+      navigate(`/clinic/${clinicSlug}/doctor/${createdDoctor.id}`);
     } catch (err: any) {
       console.error('🔴 [ADD DOCTOR MODAL] Ошибка:', err.message);
       setError(err.message || 'Ошибка при создании врача');

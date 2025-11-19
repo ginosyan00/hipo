@@ -31,7 +31,7 @@ export const AppointmentsPage: React.FC = () => {
   const [categoryInput, setCategoryInput] = useState<string>(searchParams.get('category') || ''); // Для debounce
   
   // Вид отображения (table/cards)
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   
   // Модальное окно создания приёма
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

@@ -272,15 +272,41 @@ export async function loginUser(email, password) {
 
   console.log('✅ [AUTH SERVICE] Вход успешен:', { email, role: user.role, status: user.status });
 
-  // 4. Генерировать токен с role и status
+  // 4. Для роли PATIENT - находим clinicId через модель Patient
+  let clinicId = user.clinicId;
+  
+  if (user.role === 'PATIENT' && !clinicId) {
+    console.log('🔵 [AUTH SERVICE] Поиск clinicId для PATIENT через модель Patient');
+    
+    // Ищем пациента по email или phone
+    const patient = await prisma.patient.findFirst({
+      where: {
+        OR: [
+          { email: user.email },
+          { phone: user.phone },
+        ],
+      },
+      orderBy: { createdAt: 'desc' }, // Берем последнего созданного (самого свежего)
+      select: { clinicId: true },
+    });
+
+    if (patient) {
+      clinicId = patient.clinicId;
+      console.log('✅ [AUTH SERVICE] Найден clinicId для PATIENT:', clinicId);
+    } else {
+      console.warn('⚠️ [AUTH SERVICE] Пациент не найден в базе Patient. clinicId будет null.');
+    }
+  }
+
+  // 5. Генерировать токен с role и status
   const token = generateToken({
     userId: user.id,
-    clinicId: user.clinicId,
+    clinicId: clinicId, // Может быть null для PATIENT, если не зарегистрирован в клинике
     role: user.role,
     status: user.status,
   });
 
-  // 5. Возвращаем данные без passwordHash
+  // 6. Возвращаем данные без passwordHash
   const { passwordHash: _, ...userWithoutPassword } = user;
 
   return {

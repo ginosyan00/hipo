@@ -36,6 +36,12 @@ router.get('/clinics/:slug', publicController.getClinicBySlug);
 router.get('/clinics/:slug/doctors', publicController.getClinicDoctors);
 
 /**
+ * GET /api/v1/public/clinics/:slug/doctors/:doctorId
+ * Получить врача по ID
+ */
+router.get('/clinics/:slug/doctors/:doctorId', publicController.getClinicDoctor);
+
+/**
  * POST /api/v1/public/appointments
  * Создать публичную заявку на приём (онлайн-запись)
  * Без авторизации!

@@ -131,6 +131,59 @@ export async function findClinicDoctors(slug) {
 }
 
 /**
+ * Получить врача по ID и slug клиники
+ * @param {string} slug - Slug клиники
+ * @param {string} doctorId - ID врача
+ * @returns {Promise<object>} Врач
+ */
+export async function findClinicDoctor(slug, doctorId) {
+  // Сначала найдем клинику
+  const clinic = await prisma.clinic.findUnique({
+    where: { slug },
+    select: { id: true, name: true, slug: true },
+  });
+
+  if (!clinic) {
+    throw new Error('Clinic not found');
+  }
+
+  // Получаем врача
+  const doctor = await prisma.user.findFirst({
+    where: {
+      id: doctorId,
+      clinicId: clinic.id,
+      role: 'DOCTOR',
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      specialization: true,
+      phone: true,
+      avatar: true,
+      experience: true,
+      licenseNumber: true,
+      dateOfBirth: true,
+      gender: true,
+    },
+  });
+
+  if (!doctor) {
+    throw new Error('Doctor not found');
+  }
+
+  return {
+    ...doctor,
+    clinic: {
+      id: clinic.id,
+      name: clinic.name,
+      slug: clinic.slug,
+    },
+  };
+}
+
+/**
  * Создать публичную заявку на приём
  * Находит или создает пациента, затем создает приём со статусом 'pending'
  * @param {string} clinicSlug - Slug клиники

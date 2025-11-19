@@ -40,6 +40,16 @@ export const publicService = {
   },
 
   /**
+   * Получить врача по ID
+   */
+  async getClinicDoctor(slug: string, doctorId: string): Promise<User & { clinic: { id: string; name: string; slug: string } }> {
+    const { data } = await api.get<ApiResponse<User & { clinic: { id: string; name: string; slug: string } }>>(
+      `/public/clinics/${slug}/doctors/${doctorId}`
+    );
+    return data.data;
+  },
+
+  /**
    * Получить список городов
    */
   async getCities(): Promise<string[]> {

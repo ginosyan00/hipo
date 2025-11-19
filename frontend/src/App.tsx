@@ -7,6 +7,8 @@ import { DashboardPage } from './pages/dashboard/Dashboard';
 import { PatientsPage } from './pages/dashboard/Patients';
 import { AppointmentsPage } from './pages/dashboard/Appointments';
 import { StaffPage } from './pages/dashboard/Staff';
+import { DoctorsPage } from './pages/dashboard/Doctors';
+import { AnalyticsPage } from './pages/dashboard/Analytics';
 import { SettingsPage } from './pages/dashboard/Settings';
 import { PatientDashboard } from './pages/dashboard/PatientDashboard';
 import { DoctorDashboard } from './pages/dashboard/DoctorDashboard';
@@ -15,8 +17,8 @@ import { AdminDashboard } from './pages/dashboard/AdminDashboard';
 import { HomePage } from './pages/public/Home';
 import { ClinicsPage } from './pages/public/Clinics';
 import { ClinicPage } from './pages/public/ClinicPage';
+import { DoctorPage } from './pages/public/DoctorPage';
 import { DashboardLayout } from './components/dashboard/DashboardLayout';
-import { NewDashboardLayout } from './components/dashboard/NewDashboardLayout';
 import { RoleProtectedRoute } from './components/RoleProtectedRoute';
 import { UserRole } from './types/api.types';
 
@@ -32,6 +34,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/clinics" element={<ClinicsPage />} />
         <Route path="/clinic/:slug" element={<ClinicPage />} />
+        <Route path="/clinic/:slug/doctor/:doctorId" element={<DoctorPage />} />
 
         {/* Auth Routes */}
         <Route path="/login" element={<LoginPage />} />
@@ -116,15 +119,18 @@ function App() {
           }
         />
         <Route
+          path="/dashboard/doctors"
+          element={
+            <RoleProtectedRoute allowedRoles={[UserRole.ADMIN, 'CLINIC']}>
+              <DoctorsPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
           path="/dashboard/analytics"
           element={
             <RoleProtectedRoute allowedRoles={[UserRole.ADMIN, 'CLINIC']}>
-              <NewDashboardLayout>
-                <div className="p-6">
-                  <h1 className="text-2xl font-bold text-text-100">Аналитика</h1>
-                  <p className="text-text-10 text-sm mt-2">Функция находится в разработке</p>
-                </div>
-              </NewDashboardLayout>
+              <AnalyticsPage />
             </RoleProtectedRoute>
           }
         />

@@ -31,6 +31,15 @@ export function useClinicDoctors(slug: string) {
   });
 }
 
+export function useClinicDoctor(slug: string, doctorId: string) {
+  return useQuery({
+    queryKey: ['public-clinic-doctor', slug, doctorId],
+    queryFn: () => publicService.getClinicDoctor(slug, doctorId),
+    enabled: !!slug && !!doctorId,
+    staleTime: 60000,
+  });
+}
+
 export function useCities() {
   return useQuery({
     queryKey: ['public-cities'],
