@@ -348,3 +348,42 @@ export async function getCurrentUser(userId) {
   return userWithoutPassword;
 }
 
+/**
+ * Обновить пароль пользователя (для всех ролей)
+ * @param {string} userId - ID пользователя
+ * @param {string} currentPassword - Текущий пароль
+ * @param {string} newPassword - Новый пароль
+ * @returns {Promise<object>} Результат обновления
+ */
+export async function updatePassword(userId, currentPassword, newPassword) {
+  console.log('🔵 [AUTH SERVICE] Обновление пароля пользователя:', userId);
+
+  // Получаем пользователя
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Проверяем текущий пароль
+  const isPasswordValid = await verifyPassword(currentPassword, user.passwordHash);
+  if (!isPasswordValid) {
+    console.log('🔴 [AUTH SERVICE] Неверный текущий пароль');
+    throw new Error('Current password is incorrect');
+  }
+
+  // Хешируем новый пароль
+  const newPasswordHash = await hashPassword(newPassword);
+
+  // Обновляем пароль
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: newPasswordHash },
+  });
+
+  console.log('✅ [AUTH SERVICE] Пароль успешно обновлен');
+  return { success: true, message: 'Password updated successfully' };
+}
+

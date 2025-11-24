@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { NewDashboardLayout } from '../../components/dashboard/NewDashboardLayout';
 import { PasswordSection } from '../../components/dashboard/PasswordSection';
 import { NotificationsSection } from '../../components/dashboard/NotificationsSection';
-import { useClinicSettings, useUpdateClinicSettings, useUpdateClinicPassword } from '../../hooks/useClinic';
+import { useClinicSettings, useUpdateClinicSettings } from '../../hooks/useClinic';
+import { useUpdatePassword } from '../../hooks/useAuth';
 import { toast } from 'react-hot-toast';
 
 /**
@@ -12,7 +13,7 @@ import { toast } from 'react-hot-toast';
 export const SettingsPage: React.FC = () => {
   const { data: settings, isLoading: settingsLoading } = useClinicSettings();
   const updateSettingsMutation = useUpdateClinicSettings();
-  const updatePasswordMutation = useUpdateClinicPassword();
+  const updatePasswordMutation = useUpdatePassword();
 
   const handleUpdateSettings = async (data: any) => {
     try {

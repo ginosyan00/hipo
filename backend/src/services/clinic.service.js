@@ -217,27 +217,26 @@ export async function updateClinicSettings(clinicId, settingsData) {
 }
 
 /**
- * Обновить пароль администратора клиники
+ * Обновить пароль пользователя клиники (для всех ролей)
  * @param {string} clinicId - ID клиники
- * @param {string} userId - ID пользователя (администратора)
+ * @param {string} userId - ID пользователя
  * @param {string} currentPassword - Текущий пароль
  * @param {string} newPassword - Новый пароль
  * @returns {Promise<object>} Результат обновления
  */
 export async function updateClinicPassword(clinicId, userId, currentPassword, newPassword) {
-  console.log('🔵 [CLINIC SERVICE] Обновление пароля администратора:', userId);
+  console.log('🔵 [CLINIC SERVICE] Обновление пароля пользователя:', userId);
 
-  // Получаем пользователя
+  // Получаем пользователя (любая роль, но должен принадлежать клинике)
   const user = await prisma.user.findFirst({
     where: {
       id: userId,
       clinicId,
-      role: 'ADMIN',
     },
   });
 
   if (!user) {
-    throw new Error('Admin user not found');
+    throw new Error('User not found or does not belong to this clinic');
   }
 
   // Проверяем текущий пароль

@@ -35,6 +35,14 @@ export const PatientDashboard: React.FC = () => {
 
   const appointments = appointmentsData?.appointments || [];
 
+  // Debug: Проверяем appointments и amount
+  React.useEffect(() => {
+    console.log('🔵 [PatientDashboard] All appointments:', appointments);
+    console.log('🔵 [PatientDashboard] Completed appointments:', appointments.filter((apt: any) => apt.status === 'completed'));
+    console.log('🔵 [PatientDashboard] Appointments with amount:', appointments.filter((apt: any) => apt.amount && apt.amount > 0));
+    console.log('🔵 [PatientDashboard] Completed with amount:', appointments.filter((apt: any) => apt.status === 'completed' && apt.amount && apt.amount > 0));
+  }, [appointments]);
+
   // Разделяем appointments на предстоящие и завершенные
   const now = new Date();
   const upcomingAppointments = appointments.filter(
@@ -211,9 +219,19 @@ export const PatientDashboard: React.FC = () => {
 
             {/* Recent Visits */}
             <Card padding="lg" className="border border-stroke shadow-md hover:shadow-lg transition-all duration-300 animate-in fade-in slide-in-from-bottom-4">
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-text-50 mb-1">Недавние визиты</h2>
-                <p className="text-xs text-text-10">История завершенных приемов</p>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-text-50 mb-1">История визитов</h2>
+                  <p className="text-xs text-text-10">Полная история всех посещений</p>
+                </div>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={() => navigate('/dashboard/patient/history')}
+                  className="shadow-md hover:shadow-lg transition-shadow"
+                >
+                  📋 Вся история
+                </Button>
               </div>
               {recentVisits.length === 0 ? (
                 <div className="text-center py-12 text-text-10">
@@ -240,6 +258,11 @@ export const PatientDashboard: React.FC = () => {
                           <p className="text-xs font-medium text-green-600 mb-1">
                             {visit.doctor?.specialization || 'Специализация не указана'}
                           </p>
+                          <p className="text-xs text-text-10 flex items-center gap-1 mb-1">
+                            <span>📍</span>
+                            {visit.clinic?.name || 'Клиника'}
+                            {visit.clinic?.city && <span className="text-text-10">• {visit.clinic.city}</span>}
+                          </p>
                           {visit.reason && (
                             <p className="text-xs text-text-10 line-clamp-1">
                               <span className="font-medium">Причина:</span> {visit.reason}
@@ -251,7 +274,15 @@ export const PatientDashboard: React.FC = () => {
                         <p className="text-xs font-medium text-text-50 whitespace-nowrap">
                           {formatDate(visit.appointmentDate)}
                         </p>
-                        <p className="text-xs text-text-10">{formatTime(visit.appointmentDate)}</p>
+                        <p className="text-xs text-text-10 mb-2">{formatTime(visit.appointmentDate)}</p>
+                        {visit.amount && visit.status === 'completed' && (
+                          <div className="mt-2 px-3 py-1.5 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-lg">
+                            <p className="text-xs font-medium text-emerald-700 mb-0.5">Оплачено</p>
+                            <p className="text-sm font-bold text-emerald-600">
+                              {visit.amount.toLocaleString('ru-RU')} ֏
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -260,9 +291,9 @@ export const PatientDashboard: React.FC = () => {
                       variant="secondary"
                       size="sm"
                       className="w-full mt-4"
-                      onClick={() => navigate('/dashboard/patient/appointments')}
+                      onClick={() => navigate('/dashboard/patient/history')}
                     >
-                      Показать все визиты ({recentVisits.length})
+                      Показать всю историю ({recentVisits.length})
                     </Button>
                   )}
                 </div>
@@ -297,7 +328,8 @@ export const PatientDashboard: React.FC = () => {
                 </button>
 
                 <button
-                  className="w-full p-4 border-2 border-stroke rounded-xl hover:border-main-100 hover:bg-main-100 hover:bg-opacity-5 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-md text-left animate-in fade-in slide-in-from-right-4"
+                  onClick={() => navigate('/dashboard/patient/history')}
+                  className="w-full p-4 border-2 border-stroke rounded-xl hover:border-green-400 hover:bg-green-50 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-md text-left animate-in fade-in slide-in-from-right-4"
                   style={{ animationDelay: '100ms' }}
                 >
                   <div className="flex items-center gap-4">
@@ -305,8 +337,8 @@ export const PatientDashboard: React.FC = () => {
                       <span className="text-xl">📋</span>
                     </div>
                     <div>
-                      <h3 className="font-bold text-text-50 text-sm mb-1">Мед. карта</h3>
-                      <p className="text-xs text-text-10">История лечения</p>
+                      <h3 className="font-bold text-text-50 text-sm mb-1">История визитов</h3>
+                      <p className="text-xs text-text-10">Полная история посещений</p>
                     </div>
                   </div>
                 </button>
@@ -399,6 +431,9 @@ export const PatientDashboard: React.FC = () => {
                           )}
                           {notification.type === NotificationType.Confirmation && (
                             <span className="text-lg">✅</span>
+                          )}
+                          {notification.type === NotificationType.NewAppointment && (
+                            <span className="text-lg">📅</span>
                           )}
                           {notification.type === NotificationType.Other && (
                             <span className="text-lg">📢</span>

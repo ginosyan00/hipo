@@ -46,6 +46,17 @@ export const authService = {
     const { data } = await api.get<ApiResponse<User>>('/auth/me');
     return data.data;
   },
+
+  /**
+   * Изменить пароль текущего пользователя (для всех ролей)
+   */
+  async updatePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const { data } = await api.put<ApiResponse<{ success: boolean; message: string }>>('/auth/password', {
+      currentPassword,
+      newPassword,
+    });
+    return data.data;
+  },
 };
 
 

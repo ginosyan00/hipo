@@ -1,6 +1,7 @@
 import { prisma } from '../config/database.js';
 import { findOrCreatePatient } from './patient.service.js';
 import { create as createAppointment } from './appointment.service.js';
+import * as notificationService from './notification.service.js';
 
 /**
  * Public Service
@@ -251,6 +252,35 @@ export async function createPublicAppointment(
     reason: reason || 'Онлайн-запись',
     registeredAt: registeredAt || null, // Локальное время регистрации от пользователя
   });
+
+  // 5. Создаем уведомление для администратора клиники о новой регистрации
+  try {
+    const formattedDate = new Date(appointmentDate).toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const doctorName = appointment.doctor?.name || doctor.name;
+    const doctorSpecialization = appointment.doctor?.specialization || doctor.specialization || '';
+    const patientName = patient.name;
+    const patientPhone = patient.phone;
+    const appointmentReason = reason || 'Онлайн-запись';
+
+    await notificationService.createForAdmin(clinic.id, {
+      type: 'new_appointment',
+      title: 'Новая онлайн-запись',
+      message: `Новый пациент ${patientName} (${patientPhone}) записался на прием к врачу ${doctorName}${doctorSpecialization ? ` (${doctorSpecialization})` : ''} на ${formattedDate}. Причина: ${appointmentReason}`,
+      appointmentId: appointment.id,
+    });
+
+    console.log(`✅ [PUBLIC SERVICE] Уведомление создано для администратора клиники ${clinic.id} о новой записи от ${patientName}`);
+  } catch (error) {
+    // Не прерываем процесс, если уведомление не создалось
+    console.error(`🔴 [PUBLIC SERVICE] Ошибка создания уведомления для администратора:`, error.message);
+  }
 
   return {
     appointment: {

@@ -308,6 +308,16 @@ export async function getPatientAppointments(email, options = {}) {
     prisma.appointment.count({ where }),
   ]);
 
+  // Debug: Проверяем appointments и amount
+  console.log('🔵 [PATIENT SERVICE] getPatientAppointments - Total appointments:', appointments.length);
+  console.log('🔵 [PATIENT SERVICE] Completed appointments:', appointments.filter(apt => apt.status === 'completed').length);
+  console.log('🔵 [PATIENT SERVICE] Appointments with amount:', appointments.filter(apt => apt.amount && apt.amount > 0).length);
+  appointments.forEach(apt => {
+    if (apt.status === 'completed') {
+      console.log(`🔵 [PATIENT SERVICE] Appointment ${apt.id}: status=${apt.status}, amount=${apt.amount}`);
+    }
+  });
+
   return {
     appointments,
     meta: {

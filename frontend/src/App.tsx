@@ -16,6 +16,7 @@ import { PatientDashboard } from './pages/dashboard/PatientDashboard';
 import { PatientAppointmentsPage } from './pages/dashboard/PatientAppointmentsPage';
 import { PatientAnalyticsPage } from './pages/dashboard/PatientAnalyticsPage';
 import { PatientClinicsPage } from './pages/dashboard/PatientClinicsPage';
+import { PatientHistoryPage } from './pages/dashboard/PatientHistoryPage';
 import { DoctorDashboard } from './pages/dashboard/DoctorDashboard';
 import { PartnerDashboard } from './pages/dashboard/PartnerDashboard';
 import { AdminDashboard } from './pages/dashboard/AdminDashboard';
@@ -85,6 +86,14 @@ function App() {
           element={
             <RoleProtectedRoute allowedRoles={[UserRole.PATIENT]}>
               <PatientAnalyticsPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/patient/history"
+          element={
+            <RoleProtectedRoute allowedRoles={[UserRole.PATIENT]}>
+              <PatientHistoryPage />
             </RoleProtectedRoute>
           }
         />

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button, Card, Input, Modal, Spinner, BackButton, Calendar } from '../../components/common';
 import { CertificateGallery } from '../../components/public/CertificateGallery';
 import { useClinic, useClinicDoctors, useCreatePublicAppointment } from '../../hooks/usePublic';
+import { useAuthStore } from '../../store/useAuthStore';
 
 // Import icons
 import brainLogo from '../../assets/icons/brain-logo.svg';
@@ -21,6 +22,11 @@ export const ClinicPage: React.FC = () => {
   const { data: clinic, isLoading: clinicLoading } = useClinic(slug!);
   const { data: doctors, isLoading: doctorsLoading } = useClinicDoctors(slug!);
   const createMutation = useCreatePublicAppointment();
+  
+  // Auth state
+  const user = useAuthStore(state => state.user);
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const logout = useAuthStore(state => state.logout);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -34,6 +40,26 @@ export const ClinicPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
 
+  // Автозаполнение формы для авторизованных пользователей
+  useEffect(() => {
+    if (isModalOpen && isAuthenticated && user) {
+      setFormData(prev => ({
+        ...prev,
+        patientName: user.name || '',
+        patientPhone: user.phone || '',
+        patientEmail: user.email || '',
+      }));
+    } else if (isModalOpen && !isAuthenticated) {
+      // Сброс формы для неавторизованных
+      setFormData({
+        patientName: '',
+        patientPhone: '',
+        patientEmail: '',
+        reason: '',
+      });
+    }
+  }, [isModalOpen, isAuthenticated, user]);
+
   const handleOpenModal = (doctorId: string) => {
     setSelectedDoctor(doctorId);
     setIsModalOpen(true);
@@ -41,6 +67,16 @@ export const ClinicPage: React.FC = () => {
     // Сброс календаря при открытии модального окна
     setSelectedDate(null);
     setSelectedTime('');
+  };
+  
+  const handleLogoutAndReset = () => {
+    logout();
+    setFormData({
+      patientName: '',
+      patientPhone: '',
+      patientEmail: '',
+      reason: '',
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,6 +86,24 @@ export const ClinicPage: React.FC = () => {
     if (!selectedDate || !selectedTime) {
       alert('Пожалуйста, выберите дату и время приёма');
       return;
+    }
+
+    // Валидация для неавторизованных пользователей
+    if (!isAuthenticated) {
+      if (!formData.patientName.trim()) {
+        alert('Пожалуйста, укажите ваше ФИО');
+        return;
+      }
+      if (!formData.patientPhone.trim()) {
+        alert('Пожалуйста, укажите ваш телефон');
+        return;
+      }
+    } else if (isAuthenticated && user) {
+      // Валидация для авторизованных пользователей
+      if (!user.phone && !formData.patientPhone.trim()) {
+        alert('Пожалуйста, укажите ваш телефон для записи');
+        return;
+      }
     }
 
     try {
@@ -71,26 +125,47 @@ export const ClinicPage: React.FC = () => {
       
       const registeredAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}${offsetString}`;
 
+      // Используем данные пользователя, если авторизован, иначе данные из формы
+      // Если у пользователя нет телефона, используем телефон из формы
+      const patientData = isAuthenticated && user
+        ? {
+            name: user.name,
+            phone: user.phone || formData.patientPhone || '',
+            email: user.email || formData.patientEmail || undefined,
+          }
+        : {
+            name: formData.patientName,
+            phone: formData.patientPhone,
+            email: formData.patientEmail || undefined,
+          };
+
       await createMutation.mutateAsync({
         clinicSlug: slug!,
         doctorId: selectedDoctor,
-        patient: {
-          name: formData.patientName,
-          phone: formData.patientPhone,
-          email: formData.patientEmail || undefined,
-        },
+        patient: patientData,
         appointmentDate: appointmentDateTimeUTC,
         reason: formData.reason || undefined,
         registeredAt: registeredAt,
       });
 
       setSuccessMessage('✅ Ваша заявка принята! Клиника свяжется с вами в ближайшее время.');
-      setFormData({
-        patientName: '',
-        patientPhone: '',
-        patientEmail: '',
-        reason: '',
-      });
+      
+      // Сброс формы только для неавторизованных пользователей
+      if (!isAuthenticated) {
+        setFormData({
+          patientName: '',
+          patientPhone: '',
+          patientEmail: '',
+          reason: '',
+        });
+      } else {
+        // Для авторизованных сбрасываем только причину визита
+        setFormData(prev => ({
+          ...prev,
+          reason: '',
+        }));
+      }
+      
       setSelectedDate(null);
       setSelectedTime('');
     } catch (err: any) {
@@ -320,15 +395,67 @@ export const ClinicPage: React.FC = () => {
               </p>
             </div>
 
-            <Input
-              label="Ваше ФИО"
-              placeholder="Иван Иванов"
-              value={formData.patientName}
-              onChange={e => setFormData({ ...formData, patientName: e.target.value })}
-              required
-            />
+            {/* Информация об авторизованном пользователе */}
+            {isAuthenticated && user && (
+              <div className="bg-secondary-10 border border-secondary-50 px-4 py-3 rounded-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs text-text-10 mb-1">Вы записываетесь как:</p>
+                    <p className="text-sm font-medium text-text-100">{user.name}</p>
+                    <p className="text-xs text-text-50 mt-1">{user.email}</p>
+                    {user.phone && (
+                      <p className="text-xs text-text-50">{user.phone}</p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleLogoutAndReset}
+                    className="text-xs font-normal whitespace-nowrap"
+                  >
+                    Выйти
+                  </Button>
+                </div>
+                <p className="text-xs text-text-10 mt-2">
+                  ✓ Ваши данные автоматически заполнены.{user.phone ? ' Вам нужно только выбрать дату, время и указать причину визита.' : ' Пожалуйста, укажите ваш телефон для записи, выберите дату, время и причину визита.'}
+                </p>
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Поля для неавторизованных пользователей */}
+            {!isAuthenticated && (
+              <>
+                <Input
+                  label="Ваше ФИО"
+                  placeholder="Иван Иванов"
+                  value={formData.patientName}
+                  onChange={e => setFormData({ ...formData, patientName: e.target.value })}
+                  required
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Телефон"
+                    type="tel"
+                    placeholder="+374 98 123456"
+                    value={formData.patientPhone}
+                    onChange={e => setFormData({ ...formData, patientPhone: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Email"
+                    type="email"
+                    placeholder="example@mail.com"
+                    value={formData.patientEmail}
+                    onChange={e => setFormData({ ...formData, patientEmail: e.target.value })}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Поле телефона для авторизованных пользователей, если у них нет телефона */}
+            {isAuthenticated && user && !user.phone && (
               <Input
                 label="Телефон"
                 type="tel"
@@ -337,14 +464,20 @@ export const ClinicPage: React.FC = () => {
                 onChange={e => setFormData({ ...formData, patientPhone: e.target.value })}
                 required
               />
-              <Input
-                label="Email"
-                type="email"
-                placeholder="example@mail.com"
-                value={formData.patientEmail}
-                onChange={e => setFormData({ ...formData, patientEmail: e.target.value })}
-              />
-            </div>
+            )}
+
+            {/* Ссылка на регистрацию для неавторизованных */}
+            {!isAuthenticated && (
+              <div className="bg-main-10 border border-stroke px-4 py-2 rounded-sm">
+                <p className="text-xs text-text-50">
+                  💡 <Link to="/register-user" className="text-main-100 hover:underline font-medium">
+                    Зарегистрируйтесь
+                  </Link> или <Link to="/login" className="text-main-100 hover:underline font-medium">
+                    войдите
+                  </Link>, чтобы не вводить данные каждый раз
+                </p>
+              </div>
+            )}
 
             {/* Calendar Component */}
             <div>

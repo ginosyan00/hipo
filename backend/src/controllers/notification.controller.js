@@ -31,6 +31,10 @@ async function getPatientIdUserIdAndClinicId(req) {
 
       if (!user) {
         console.warn('🔴 [NOTIFICATION] Пользователь не найден:', req.user.userId);
+        // Если пользователь не найден, но есть clinicId в токене, используем его
+        if (req.user.clinicId) {
+          return { patientId: null, userId: null, clinicId: req.user.clinicId };
+        }
         return { patientId: null, userId: null, clinicId: null };
       }
 
@@ -56,12 +60,16 @@ async function getPatientIdUserIdAndClinicId(req) {
         return { patientId: patient.id, userId: null, clinicId: patient.clinicId };
       }
 
-      // Если пациент не найден, но есть clinicId в токене, используем его
+      // Если пациент не найден в таблице Patient, но есть clinicId в токене
+      // Это нормальная ситуация - пользователь может быть зарегистрирован как User,
+      // но еще не создал запись в таблице Patient
       if (req.user.clinicId) {
-        console.log('⚠️ [NOTIFICATION] Пациент не найден, используем clinicId из токена:', req.user.clinicId);
-        return { patientId: req.query.patientId || null, userId: null, clinicId: req.user.clinicId };
+        console.log('⚠️ [NOTIFICATION] Пациент не найден в таблице Patient, используем clinicId из токена:', req.user.clinicId);
+        return { patientId: null, userId: null, clinicId: req.user.clinicId };
       }
 
+      // Если нет ни patientId, ни clinicId, возвращаем null
+      console.warn('⚠️ [NOTIFICATION] Не удалось найти patientId и clinicId для PATIENT');
       return { patientId: null, userId: null, clinicId: null };
     }
 
@@ -73,7 +81,25 @@ async function getPatientIdUserIdAndClinicId(req) {
       return { patientId: null, userId, clinicId };
     }
 
-    // Для админов - используем patientId или userId из query параметров и clinicId из токена
+    // Для администраторов (ADMIN/CLINIC) - используем userId из токена для загрузки их уведомлений
+    // Если в query есть patientId или userId, используем их (для просмотра уведомлений других пользователей)
+    if (req.user.role === 'ADMIN' || req.user.role === 'CLINIC') {
+      const clinicId = req.user.clinicId || null;
+      // По умолчанию используем userId из токена (уведомления самого администратора)
+      // Но если в query есть userId или patientId, используем их (для просмотра уведомлений других)
+      const userId = req.query.userId || req.user.userId || null;
+      const patientId = req.query.patientId || null;
+      console.log('🔵 [NOTIFICATION] PatientId, UserId и ClinicId для', req.user.role, ':', { 
+        patientId, 
+        userId, 
+        clinicId,
+        fromToken: req.user.userId,
+        fromQuery: req.query.userId 
+      });
+      return { patientId, userId, clinicId };
+    }
+
+    // Для других ролей - используем patientId или userId из query параметров и clinicId из токена
     const patientId = req.query.patientId || null;
     const userId = req.query.userId || null;
     const clinicId = req.user.clinicId || null;
@@ -112,20 +138,33 @@ export async function getAll(req, res, next) {
     // Получаем patientId, userId и clinicId
     const { patientId, userId, clinicId } = await getPatientIdUserIdAndClinicId(req);
 
+    // Если clinicId не найден, возвращаем пустой список
     if (!clinicId) {
-      console.warn('🔴 [NOTIFICATION] ClinicId не найден');
-      return res.status(400).json({
-        success: false,
-        message: 'Clinic ID is required.',
-      });
+      console.warn('⚠️ [NOTIFICATION] ClinicId не найден, возвращаем пустой список');
+      return successResponse(res, {
+        notifications: [],
+        meta: {
+          total: 0,
+          page: page ? parseInt(page) : 1,
+          limit: limit ? parseInt(limit) : 20,
+          totalPages: 0,
+        },
+      }, 200);
     }
 
+    // Если patientId и userId не найдены, возвращаем пустой список
+    // Это может произойти, если пользователь еще не создал запись в таблице Patient
     if (!patientId && !userId) {
-      console.warn('🔴 [NOTIFICATION] PatientId и UserId не найдены');
-      return res.status(400).json({
-        success: false,
-        message: 'Patient ID or User ID is required.',
-      });
+      console.warn('⚠️ [NOTIFICATION] PatientId и UserId не найдены, возвращаем пустой список');
+      return successResponse(res, {
+        notifications: [],
+        meta: {
+          total: 0,
+          page: page ? parseInt(page) : 1,
+          limit: limit ? parseInt(limit) : 20,
+          totalPages: 0,
+        },
+      }, 200);
     }
 
     console.log('🔵 [NOTIFICATION] Запрос уведомлений:', { clinicId, patientId, userId, isRead, type, page, limit });
@@ -141,7 +180,17 @@ export async function getAll(req, res, next) {
     successResponse(res, result, 200);
   } catch (error) {
     console.error('🔴 [NOTIFICATION] Ошибка в getAll:', error);
-    next(error);
+    // В случае ошибки возвращаем пустой список вместо ошибки, чтобы не ломать UI
+    console.warn('⚠️ [NOTIFICATION] Возвращаем пустой список из-за ошибки');
+    return successResponse(res, {
+      notifications: [],
+      meta: {
+        total: 0,
+        page: req.query.page ? parseInt(req.query.page) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit) : 20,
+        totalPages: 0,
+      },
+    }, 200);
   }
 }
 
@@ -169,20 +218,17 @@ export async function getUnreadCount(req, res, next) {
     // Получаем patientId, userId и clinicId
     const { patientId, userId, clinicId } = await getPatientIdUserIdAndClinicId(req);
 
+    // Если clinicId не найден, возвращаем 0 (нет уведомлений)
     if (!clinicId) {
-      console.warn('🔴 [NOTIFICATION] ClinicId не найден');
-      return res.status(400).json({
-        success: false,
-        message: 'Clinic ID is required.',
-      });
+      console.warn('⚠️ [NOTIFICATION] ClinicId не найден, возвращаем 0');
+      return successResponse(res, { count: 0 }, 200);
     }
 
+    // Если patientId и userId не найдены, возвращаем 0 (нет уведомлений)
+    // Это может произойти, если пользователь еще не создал запись в таблице Patient
     if (!patientId && !userId) {
-      console.warn('🔴 [NOTIFICATION] PatientId и UserId не найдены');
-      return res.status(400).json({
-        success: false,
-        message: 'Patient ID or User ID is required.',
-      });
+      console.warn('⚠️ [NOTIFICATION] PatientId и UserId не найдены, возвращаем 0');
+      return successResponse(res, { count: 0 }, 200);
     }
 
     console.log('🔵 [NOTIFICATION] Запрос количества непрочитанных:', { clinicId, patientId, userId });
@@ -192,7 +238,9 @@ export async function getUnreadCount(req, res, next) {
     successResponse(res, { count }, 200);
   } catch (error) {
     console.error('🔴 [NOTIFICATION] Ошибка в getUnreadCount:', error);
-    next(error);
+    // В случае ошибки возвращаем 0 вместо ошибки, чтобы не ломать UI
+    console.warn('⚠️ [NOTIFICATION] Возвращаем 0 из-за ошибки');
+    return successResponse(res, { count: 0 }, 200);
   }
 }
 

@@ -6,7 +6,6 @@ import { NotificationDropdown } from './NotificationDropdown';
 
 // Import icons
 import searchIcon from '../../assets/icons/search.svg';
-import settingsIcon from '../../assets/icons/settings.svg';
 import arrowDownIcon from '../../assets/icons/arrow-down.svg';
 
 /**
@@ -54,16 +53,6 @@ export const Header: React.FC = () => {
         <div className="flex items-center gap-4">
           {/* Notifications */}
           <NotificationDropdown />
-
-          {/* Settings */}
-          {(user?.role === 'ADMIN' || user?.role === 'CLINIC') && (
-            <button
-              onClick={() => navigate('/dashboard/settings')}
-              className="p-2 rounded-sm hover:bg-bg-primary transition-smooth"
-            >
-              <img src={settingsIcon} alt="Settings" className="w-6 h-6" />
-            </button>
-          )}
 
           {/* Profile Dropdown */}
           <div className="relative">

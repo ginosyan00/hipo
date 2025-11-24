@@ -42,6 +42,8 @@ export function useCreateAppointment() {
     mutationFn: (data: any) => appointmentService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      // Также инвалидируем patient appointments, чтобы пациент видел обновления
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
     },
   });
 }
@@ -54,6 +56,8 @@ export function useUpdateAppointment() {
       appointmentService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      // Также инвалидируем patient appointments, чтобы пациент видел обновления
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
     },
   });
 }
@@ -79,12 +83,14 @@ export function useUpdateAppointmentStatus() {
     onSuccess: (data, variables) => {
       // Инвалидируем кеш приёмов
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      // Также инвалидируем patient appointments, чтобы пациент видел обновления
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
       
       // Если статус изменен на 'completed', также инвалидируем кеш визитов пациентов
       // Это гарантирует, что завершенный приём сразу появится в разделе Patients
       if (variables.status === 'completed') {
         queryClient.invalidateQueries({ queryKey: ['patientVisits'] });
-        console.log('✅ [APPOINTMENTS] Приём завершен, обновляем кеш для раздела Patients');
+        console.log('✅ [APPOINTMENTS] Приём завершен, обновляем кеш для раздела Patients и patient-appointments');
       }
       
       // Если статус изменен на 'cancelled', инвалидируем кеш уведомлений
@@ -103,6 +109,8 @@ export function useDeleteAppointment() {
     mutationFn: (id: string) => appointmentService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      // Также инвалидируем patient appointments, чтобы пациент видел обновления
+      queryClient.invalidateQueries({ queryKey: ['patient-appointments'] });
     },
   });
 }

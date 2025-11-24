@@ -12,7 +12,8 @@ export function usePatientAppointments(params?: {
   return useQuery({
     queryKey: ['patient-appointments', params],
     queryFn: () => patientService.getMyAppointments(params),
-    staleTime: 10000, // 10 секунд
+    staleTime: 5000, // 5 секунд - более частое обновление для актуальных данных
+    refetchOnWindowFocus: true, // Обновлять при фокусе окна
   });
 }
 

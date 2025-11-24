@@ -2,8 +2,10 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { NewDashboardLayout } from '../../components/dashboard/NewDashboardLayout';
 import { DoctorProfileSection } from '../../components/dashboard/DoctorProfileSection';
+import { PasswordSection } from '../../components/dashboard/PasswordSection';
 import { useUser, useUpdateUser } from '../../hooks/useUsers';
 import { useDoctorProfile, useUpdateDoctorProfile, useUploadDoctorAvatar } from '../../hooks/useDoctor';
+import { useUpdatePassword } from '../../hooks/useAuth';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Spinner, BackButton } from '../../components/common';
 import { toast } from 'react-hot-toast';
@@ -35,6 +37,7 @@ export const DoctorSettingsPage: React.FC = () => {
   const updateUserMutation = useUpdateUser();
   const updateDoctorProfileMutation = useUpdateDoctorProfile();
   const uploadDoctorAvatarMutation = useUploadDoctorAvatar();
+  const updatePasswordMutation = useUpdatePassword();
   
   const handleUpdateProfile = async (data: any) => {
     try {
@@ -70,6 +73,16 @@ export const DoctorSettingsPage: React.FC = () => {
       }
     } catch (error: any) {
       toast.error(error.message || 'Ошибка при обновлении фото');
+      throw error;
+    }
+  };
+
+  const handleUpdatePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      await updatePasswordMutation.mutateAsync({ currentPassword, newPassword });
+      toast.success('Пароль успешно изменен');
+    } catch (error: any) {
+      toast.error(error.message || 'Ошибка при изменении пароля');
       throw error;
     }
   };
@@ -126,6 +139,14 @@ export const DoctorSettingsPage: React.FC = () => {
           isAvatarLoading={isEditingSelf ? uploadDoctorAvatarMutation.isPending : updateUserMutation.isPending}
           isEditingSelf={isEditingSelf}
         />
+
+        {/* Пароль (только если врач редактирует себя) */}
+        {isEditingSelf && (
+          <PasswordSection
+            onUpdate={handleUpdatePassword}
+            isLoading={updatePasswordMutation.isPending}
+          />
+        )}
       </div>
     </NewDashboardLayout>
   );

@@ -129,6 +129,18 @@ export async function getMyAppointments(req, res, next) {
       limit: limit ? parseInt(limit) : 20,
     });
 
+    // Debug: Проверяем результат перед отправкой
+    console.log('🔵 [PATIENT CONTROLLER] getMyAppointments - Result:', {
+      totalAppointments: result.appointments.length,
+      completedWithAmount: result.appointments.filter(apt => apt.status === 'completed' && apt.amount && apt.amount > 0).length,
+      appointments: result.appointments.map(apt => ({
+        id: apt.id,
+        status: apt.status,
+        amount: apt.amount,
+        appointmentDate: apt.appointmentDate,
+      })),
+    });
+
     successResponse(res, result, 200);
   } catch (error) {
     next(error);

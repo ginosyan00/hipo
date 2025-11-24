@@ -209,6 +209,12 @@ export interface Appointment {
     phone: string;
     email?: string;
   };
+  clinic?: {
+    id: string;
+    name: string;
+    city?: string;
+    slug?: string;
+  };
 }
 
 export enum AppointmentStatus {

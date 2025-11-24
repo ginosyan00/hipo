@@ -390,9 +390,9 @@ export async function create(clinicId, data) {
     },
   });
 
-  // Создаем уведомление для врача о новой записи
+  // Создаем уведомления для врача и администратора о новой записи
   try {
-    const { createForDoctor } = await import('./notification.service.js');
+    const { createForDoctor, createForAdmin } = await import('./notification.service.js');
     const appointmentDate = new Date(appointment.appointmentDate);
     const formattedDate = appointmentDate.toLocaleDateString('ru-RU', {
       day: '2-digit',
@@ -403,7 +403,15 @@ export async function create(clinicId, data) {
       hour: '2-digit',
       minute: '2-digit',
     });
+    const formattedDateTime = appointmentDate.toLocaleString('ru-RU', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
+    // Уведомление для врача
     await createForDoctor(clinicId, data.doctorId, {
       type: 'new_appointment',
       title: 'Новая запись на приём',
@@ -412,9 +420,25 @@ export async function create(clinicId, data) {
     });
 
     console.log(`✅ [APPOINTMENT] Создано уведомление для врача ${data.doctorId} о новой записи`);
+
+    // Уведомление для администратора клиники
+    const doctorName = appointment.doctor?.name || 'Врач';
+    const doctorSpecialization = appointment.doctor?.specialization || '';
+    const patientName = patient.name;
+    const patientPhone = patient.phone || 'не указан';
+    const appointmentReason = appointment.reason || 'Не указана';
+
+    await createForAdmin(clinicId, {
+      type: 'new_appointment',
+      title: 'Новая запись на приём',
+      message: `Новый пациент ${patientName} (${patientPhone}) записался на прием к врачу ${doctorName}${doctorSpecialization ? ` (${doctorSpecialization})` : ''} на ${formattedDateTime}. Причина: ${appointmentReason}`,
+      appointmentId: appointment.id,
+    });
+
+    console.log(`✅ [APPOINTMENT] Создано уведомление для администратора клиники ${clinicId} о новой записи`);
   } catch (error) {
     // Логируем ошибку, но не прерываем создание appointment
-    console.error(`⚠️ [APPOINTMENT] Ошибка при создании уведомления для врача:`, error);
+    console.error(`⚠️ [APPOINTMENT] Ошибка при создании уведомлений:`, error);
   }
 
   return appointment;
@@ -599,6 +623,8 @@ export async function updateStatus(
   }
 
   // Обновляем статус (и дополнительные данные, если указаны)
+  console.log('🔵 [APPOINTMENT SERVICE] updateStatus - updateData:', JSON.stringify(updateData, null, 2));
+  
   const updated = await prisma.appointment.update({
     where: { id: appointmentId },
     data: updateData,
@@ -619,6 +645,12 @@ export async function updateStatus(
         },
       },
     },
+  });
+
+  console.log('✅ [APPOINTMENT SERVICE] updateStatus - Updated appointment:', {
+    id: updated.id,
+    status: updated.status,
+    amount: updated.amount,
   });
 
   // Если приём отменён, создаём уведомление для пациента

@@ -141,13 +141,13 @@ export async function updatePassword(req, res, next) {
     const { clinicId, userId } = req.user;
 
     if (!clinicId) {
-      return errorResponse(res, 'User is not associated with a clinic', 403);
+      return errorResponse(res, 'FORBIDDEN', 'User is not associated with a clinic', 403);
     }
 
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      return errorResponse(res, 'Current password and new password are required', 400);
+      return errorResponse(res, 'VALIDATION_ERROR', 'Current password and new password are required', 400);
     }
 
     const result = await clinicService.updateClinicPassword(

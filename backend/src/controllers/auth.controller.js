@@ -71,3 +71,23 @@ export async function getMe(req, res, next) {
   }
 }
 
+/**
+ * PUT /api/v1/auth/password
+ * Изменить пароль текущего пользователя (для всех ролей)
+ */
+export async function updatePassword(req, res, next) {
+  try {
+    const { userId } = req.user;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return errorResponse(res, 'VALIDATION_ERROR', 'Current password and new password are required', 400);
+    }
+
+    const result = await authService.updatePassword(userId, currentPassword, newPassword);
+    successResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+}
+

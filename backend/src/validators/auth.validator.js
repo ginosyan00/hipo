@@ -203,3 +203,22 @@ export const registerUserSchema = Joi.object({
   }),
 });
 
+/**
+ * Изменение пароля (для всех ролей)
+ */
+export const updatePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required().messages({
+    'any.required': 'Current password is required',
+  }),
+  newPassword: Joi.string()
+    .min(8)
+    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .required()
+    .messages({
+      'string.min': 'New password must be at least 8 characters',
+      'string.pattern.base':
+        'New password must contain at least 1 uppercase letter, 1 lowercase letter, and 1 number',
+      'any.required': 'New password is required',
+    }),
+});
+

@@ -199,6 +199,91 @@ export async function createForDoctor(clinicId, userId, data) {
 }
 
 /**
+ * Создать уведомление для администратора клиники
+ * @param {string} clinicId - ID клиники
+ * @param {object} data - Данные уведомления (type, title, message, appointmentId)
+ * @returns {Promise<object>} Созданное уведомление
+ */
+export async function createForAdmin(clinicId, data) {
+  console.log(`🔵 [NOTIFICATION] Поиск администратора для клиники ${clinicId}`);
+  
+  // Находим администратора клиники (ADMIN или CLINIC роль)
+  const admin = await prisma.user.findFirst({
+    where: {
+      clinicId,
+      role: { in: ['ADMIN', 'CLINIC'] },
+      status: 'ACTIVE',
+    },
+    orderBy: { createdAt: 'asc' }, // Берем первого созданного (основного администратора)
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  });
+
+  if (!admin) {
+    // Попробуем найти любого пользователя с ролью ADMIN или CLINIC (даже если статус не ACTIVE)
+    const anyAdmin = await prisma.user.findFirst({
+      where: {
+        clinicId,
+        role: { in: ['ADMIN', 'CLINIC'] },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+      },
+    });
+
+    if (anyAdmin) {
+      console.warn(`⚠️ [NOTIFICATION] Найден администратор ${anyAdmin.id}, но статус ${anyAdmin.status} (не ACTIVE). Создаем уведомление все равно.`);
+      // Создаем уведомление даже если статус не ACTIVE
+      const notification = await prisma.notification.create({
+        data: {
+          clinicId,
+          patientId: null,
+          userId: anyAdmin.id,
+          type: data.type || 'new_appointment',
+          title: data.title,
+          message: data.message,
+          appointmentId: data.appointmentId || null,
+        },
+      });
+      console.log(`✅ [NOTIFICATION] Создано уведомление ${notification.id} для администратора ${anyAdmin.id} (${anyAdmin.status}) клиники ${clinicId}`);
+      return notification;
+    }
+
+    console.error(`🔴 [NOTIFICATION] Администратор не найден для клиники ${clinicId}. Проверьте, что в клинике есть пользователь с ролью ADMIN или CLINIC.`);
+    return null;
+  }
+
+  console.log(`✅ [NOTIFICATION] Найден администратор: ${admin.id} (${admin.name}, ${admin.email}, ${admin.role})`);
+
+  // Создаем уведомление
+  const notification = await prisma.notification.create({
+    data: {
+      clinicId, // ОБЯЗАТЕЛЬНО!
+      patientId: null,
+      userId: admin.id,
+      type: data.type || 'new_appointment',
+      title: data.title,
+      message: data.message,
+      appointmentId: data.appointmentId || null,
+    },
+  });
+
+  console.log(`✅ [NOTIFICATION] Создано уведомление ${notification.id} для администратора ${admin.id} (${admin.name}) клиники ${clinicId}`);
+  console.log(`📋 [NOTIFICATION] Текст уведомления: "${data.title}" - "${data.message}"`);
+
+  return notification;
+}
+
+/**
  * Отметить уведомление как прочитанное
  * @param {string} clinicId - ID клиники
  * @param {string} patientId - ID пациента (опционально)

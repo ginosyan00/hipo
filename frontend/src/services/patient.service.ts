@@ -59,6 +59,20 @@ export const patientService = {
     const { data } = await api.get<ApiResponse<PaginatedResponse<any>>>('/patients/appointments', {
       params,
     });
+    
+    // Debug: Проверяем данные перед возвратом
+    console.log('🔵 [PATIENT SERVICE] getMyAppointments - Response:', {
+      total: data.data.appointments?.length || 0,
+      completed: data.data.appointments?.filter((apt: any) => apt.status === 'completed').length || 0,
+      withAmount: data.data.appointments?.filter((apt: any) => apt.amount && apt.amount > 0).length || 0,
+      appointments: data.data.appointments?.map((apt: any) => ({
+        id: apt.id,
+        status: apt.status,
+        amount: apt.amount,
+        appointmentDate: apt.appointmentDate,
+      })) || [],
+    });
+    
     return data.data;
   },
 

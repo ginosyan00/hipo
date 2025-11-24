@@ -18,16 +18,20 @@ export const NotificationDropdown: React.FC = () => {
 
   // Определяем, для кого загружать уведомления
   const isDoctor = user?.role === 'DOCTOR';
-  const userId = isDoctor ? user?.id : undefined;
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLINIC';
+  // Для врачей и администраторов используем userId, для пациентов - patientId
+  const userId = (isDoctor || isAdmin) ? user?.id : undefined;
+  const patientId = user?.role === 'PATIENT' ? undefined : undefined; // Пациенты используют patientId из их записи
 
   // Загружаем уведомления
   const { data: notificationsData, isLoading } = useNotifications({
     userId,
+    patientId,
     limit: 10,
   });
 
   // Загружаем количество непрочитанных
-  const { data: unreadCount = 0 } = useUnreadNotificationsCount(undefined, userId);
+  const { data: unreadCount = 0 } = useUnreadNotificationsCount(patientId, userId);
 
   const markAsReadMutation = useMarkNotificationAsRead();
   const markAllAsReadMutation = useMarkAllNotificationsAsRead();
@@ -58,20 +62,25 @@ export const NotificationDropdown: React.FC = () => {
     if (!notification.isRead) {
       await markAsReadMutation.mutateAsync({
         id: notification.id,
+        patientId,
         userId,
       });
     }
 
     // Переход к appointment, если есть appointmentId
     if (notification.appointmentId) {
-      navigate(`/dashboard/appointments?highlight=${notification.appointmentId}`);
+      if (isAdmin || isDoctor) {
+        navigate(`/dashboard/appointments?highlight=${notification.appointmentId}`);
+      } else {
+        navigate(`/dashboard/patient/appointments?highlight=${notification.appointmentId}`);
+      }
     }
 
     setIsOpen(false);
   };
 
   const handleMarkAllAsRead = async () => {
-    await markAllAsReadMutation.mutateAsync(userId);
+    await markAllAsReadMutation.mutateAsync(patientId, userId);
   };
 
   const formatDate = (date: Date | string) => {
