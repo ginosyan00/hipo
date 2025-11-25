@@ -9,8 +9,8 @@ export default {
       colors: {
         // Main color from Figma
         main: {
-          10: '#F5F6FF',
-          100: '#3A6FF8',
+          10: '#E6F7F6',
+          100: '#00a79d',
         },
         // Secondary color from Figma
         secondary: {
@@ -32,16 +32,16 @@ export default {
         stroke: '#F1F1F1',
         // Primary colors for landing page (based on Figma)
         primary: {
-          50: '#F0F5FF',
-          100: '#E5EDFF',
-          200: '#C7D7FE',
-          300: '#A5BBFE',
-          400: '#7B96FD',
-          500: '#3A6FF8',
-          600: '#2952D6',
-          700: '#1E3FB3',
-          800: '#162E8C',
-          900: '#0F2166',
+          50: '#E6F7F6',
+          100: '#CCEFED',
+          200: '#99DFDB',
+          300: '#66CFC9',
+          400: '#33BFB7',
+          500: '#00a79d',
+          600: '#00867E',
+          700: '#00645E',
+          800: '#00433F',
+          900: '#00211F',
         },
         // Accent colors for landing page
         accent: {

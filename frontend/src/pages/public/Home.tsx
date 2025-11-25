@@ -37,7 +37,21 @@ export const HomePage: React.FC = () => {
               </Button>
             </Link>
             <Link to="/login">
-              <Button className="text-sm font-normal bg-main-10 text-main-100 hover:bg-main-100 hover:text-white">
+              <Button 
+                className="text-sm font-normal hover:text-white"
+                style={{ 
+                  backgroundColor: '#E6F7F6', 
+                  color: '#00a79d'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#00a79d';
+                  e.currentTarget.style.color = 'white';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#E6F7F6';
+                  e.currentTarget.style.color = '#00a79d';
+                }}
+              >
                 Вход для клиник
               </Button>
             </Link>
@@ -58,7 +72,7 @@ export const HomePage: React.FC = () => {
           {/* Main Headline - Figma Style */}
           <h2 className="text-5xl md:text-6xl lg:text-7xl font-semibold text-text-100 mb-6 leading-tight">
             Ваша улыбка —<br />
-            <span className="text-main-100">наша забота</span>
+            <span style={{ color: '#00a79d' }}>наша забота</span>
           </h2>
           
           {/* Subheadline - Figma Style */}
@@ -163,7 +177,7 @@ export const HomePage: React.FC = () => {
       <section className="bg-main-100 text-white py-24 my-20">
         <div className="container mx-auto px-8 text-center">
           <div className="max-w-3xl mx-auto">
-            <h2 className="text-4xl md:text-5xl font-medium mb-6 leading-tight">
+            <h2 className="text-4xl md:text-5xl font-medium mb-6 leading-tight">  
               Готовы к здоровой улыбке?
             </h2>
             <p className="text-lg mb-10 opacity-90">
