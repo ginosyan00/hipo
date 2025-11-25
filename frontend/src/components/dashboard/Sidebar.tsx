@@ -11,7 +11,7 @@ import patientIcon from '../../assets/icons/patient.svg';
 import analyticsIcon from '../../assets/icons/analytics.svg';
 import settingsIcon from '../../assets/icons/settings.svg';
 import webIcon from '../../assets/icons/web.svg';
-import brainLogo from '../../assets/icons/brain-logo.svg';
+import hippocratesLogo from '../../assets/icons/hippocrates-logo.png';
 
 /**
  * Sidebar Component - Figma Design
@@ -36,9 +36,14 @@ export const Sidebar: React.FC = () => {
     <aside className="hidden md:flex w-64 bg-bg-primary border-r border-stroke min-h-screen flex-col">
       {/* Logo Section */}
       <div className="px-10 pt-6 pb-16">
-        <div className="flex items-center gap-1">
-          <img src={brainLogo} alt="Logo" className="w-10 h-10 -ml-1" />
-          <h2 className="text-[21px] font-semibold text-main-100">Medic</h2>
+        <div className="flex items-center justify-center group cursor-pointer">
+          <div className="relative">
+            <img 
+              src={hippocratesLogo} 
+              alt="Logo" 
+              className="w-44 h-24 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-lg object-contain" 
+            />
+          </div>
         </div>
       </div>
 

@@ -5,7 +5,7 @@ import { Button } from '../../components/common';
 // Import icons
 import searchIcon from '../../assets/icons/search.svg';
 import calendarIcon from '../../assets/icons/calendar.svg';
-import brainLogo from '../../assets/icons/brain-logo.svg';
+import hippocratesLogo from '../../assets/icons/hippocrates-logo.png';
 
 /**
  * Home Page - Figma Design Style
@@ -15,13 +15,15 @@ export const HomePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Figma Style Header */}
-      <header className="bg-bg-white border-b border-stroke sticky top-0 z-50">
+      <header className="bg-bg-white border-b border-stroke sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-8 py-5 flex justify-between items-center">
-          <Link to="/" className="flex items-center gap-3 group">
-            <img src={brainLogo} alt="Logo" className="w-10 h-10" />
-            <div>
-              <h1 className="text-[21px] font-semibold text-main-100">Hippocrates</h1>
-              <p className="text-[10px] text-text-10">Dental Platform</p>
+          <Link to="/" className="flex items-center group transition-all duration-300 hover:opacity-90">
+            <div className="relative">
+              <img 
+                src={hippocratesLogo} 
+                alt="Logo" 
+                className="w-40 h-22 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-lg object-contain" 
+              />
             </div>
           </Link>
           
@@ -196,11 +198,13 @@ export const HomePage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             {/* Brand */}
             <div className="col-span-1 md:col-span-2">
-              <div className="flex items-center gap-3 mb-4">
-                <img src={brainLogo} alt="Logo" className="w-10 h-10" />
-                <div>
-                  <div className="text-lg font-semibold text-text-100">Hippocrates</div>
-                  <div className="text-xs text-text-10">Dental Platform</div>
+              <div className="flex items-center justify-start mb-4 group">
+                <div className="relative">
+                  <img 
+                    src={hippocratesLogo} 
+                    alt="Logo" 
+                    className="w-40 h-22 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-lg object-contain" 
+                  />
                 </div>
               </div>
               <p className="text-sm text-text-10 leading-relaxed max-w-md">

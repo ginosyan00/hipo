@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { getRoleRedirectPath } from '../../utils/roleRedirect';
 
 // Import logo
-import brainLogo from '../../assets/icons/brain-logo.svg';
+import hippocratesLogo from '../../assets/icons/hippocrates-logo.png';
 
 /**
  * Login Page - Figma Design
@@ -56,9 +56,14 @@ export const LoginPage: React.FC = () => {
       <div className="w-full max-w-md">
         {/* Logo & Title */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <img src={brainLogo} alt="Logo" className="w-10 h-10" />
-            <h1 className="text-3xl font-semibold text-main-100">Medic</h1>
+          <div className="flex items-center justify-center mb-4 group">
+            <div className="relative">
+              <img 
+                src={hippocratesLogo} 
+                alt="Logo" 
+                className="w-48 h-28 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-lg object-contain" 
+              />
+            </div>
           </div>
           <p className="text-text-10 text-sm">Войдите в панель управления</p>
         </div>

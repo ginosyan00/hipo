@@ -6,7 +6,7 @@ import { useClinic, useClinicDoctors, useCreatePublicAppointment } from '../../h
 import { useAuthStore } from '../../store/useAuthStore';
 
 // Import icons
-import brainLogo from '../../assets/icons/brain-logo.svg';
+import hippocratesLogo from '../../assets/icons/hippocrates-logo.png';
 import doctorIcon from '../../assets/icons/doctor.svg';
 
 /**
@@ -203,13 +203,15 @@ export const ClinicPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Figma Style Header */}
-      <header className="bg-bg-white border-b border-stroke sticky top-0 z-50">
+      <header className="bg-bg-white border-b border-stroke sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-8 py-5 flex justify-between items-center">
-          <Link to="/" className="flex items-center gap-3">
-            <img src={brainLogo} alt="Logo" className="w-10 h-10" />
-            <div>
-              <h1 className="text-[21px] font-semibold text-main-100">Hippocrates</h1>
-              <p className="text-[10px] text-text-10">Dental Platform</p>
+          <Link to="/" className="flex items-center group transition-all duration-300 hover:opacity-90">
+            <div className="relative">
+              <img 
+                src={hippocratesLogo} 
+                alt="Logo" 
+                className="w-40 h-22 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-lg object-contain" 
+              />
             </div>
           </Link>
           <Link to="/clinics">
