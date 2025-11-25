@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
 import { NotificationDropdown } from './NotificationDropdown';
@@ -16,7 +15,6 @@ import arrowDownIcon from '../../assets/icons/arrow-down.svg';
  * Верхняя панель с поиском и профилем
  */
 export const Header: React.FC = () => {
-  const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const logout = useAuthStore(state => state.logout);
   const toggleSidebar = useUIStore(state => state.toggleSidebar);
@@ -63,8 +61,8 @@ export const Header: React.FC = () => {
               className="relative p-2 rounded-sm hover:bg-bg-primary transition-smooth"
               title={user?.role === 'CLINIC' ? 'Чат врачей' : 'Чат'}
             >
-              <svg
-                className="w-6 h-6 text-text-50"
+              <svg  
+                className="w-8 h-8 text-text-50"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -112,6 +110,8 @@ export const Header: React.FC = () => {
                   onClick={() => {
                     logout();
                     setShowProfileMenu(false);
+                    // Используем window.location для полного перехода, чтобы избежать redirect от ProtectedRoute
+                    window.location.href = '/';
                   }}
                   className="w-full text-left px-4 py-2 text-sm text-text-50 hover:bg-bg-primary transition-smooth"
                 >

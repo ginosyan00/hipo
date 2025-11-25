@@ -42,11 +42,11 @@ api.interceptors.response.use(
       // Сервер вернул ошибку
       const { status, data } = error.response;
 
-      // 401 Unauthorized - очищаем токен и редиректим на login
+      // 401 Unauthorized - очищаем токен и редиректим на главную страницу
       if (status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        window.location.href = '/';
       }
 
       // Возвращаем структурированную ошибку

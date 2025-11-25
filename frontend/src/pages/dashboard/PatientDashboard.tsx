@@ -130,8 +130,20 @@ export const PatientDashboard: React.FC = () => {
                 </p>
               )}
             </div>
-            <div className="hidden md:block text-6xl md:text-8xl opacity-20 animate-pulse">
-              👤
+            <div className="hidden md:block">
+              {user?.avatar ? (
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-white/30 shadow-2xl bg-white/10 flex items-center justify-center">
+                  <img
+                    src={user.avatar}
+                    alt={user.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white/30 shadow-2xl bg-white/20 flex items-center justify-center text-4xl md:text-6xl text-white/80 font-bold">
+                  {user?.name?.charAt(0).toUpperCase() || '👤'}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -442,99 +454,6 @@ export const PatientDashboard: React.FC = () => {
                   </div>
                 </button>
               </div>
-            </Card>
-
-            {/* Notifications */}
-            <Card padding="lg" className="border border-stroke shadow-md hover:shadow-lg transition-all duration-300 animate-in fade-in slide-in-from-right-4">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-text-50 mb-1">Уведомления</h2>
-                  <p className="text-xs text-text-10">Важные обновления</p>
-                </div>
-                {unreadCount > 0 && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => markAllAsReadMutation.mutate()}
-                    isLoading={markAllAsReadMutation.isPending}
-                  >
-                    Отметить все прочитанными
-                  </Button>
-                )}
-              </div>
-              {isLoadingNotifications ? (
-                <div className="flex justify-center py-4">
-                  <Spinner />
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="text-center py-4 text-text-10">
-                  <div className="text-3xl mb-2">🔔</div>
-                  <p className="text-sm">Нет уведомлений</p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {notifications.map((notification: Notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-3 border rounded-lg transition-all cursor-pointer ${
-                        notification.isRead
-                          ? 'border-stroke bg-bg-white'
-                          : 'border-orange-200 bg-orange-50'
-                      } hover:border-main-100 hover:bg-main-100 hover:bg-opacity-5`}
-                      onClick={() => {
-                        if (!notification.isRead) {
-                          markAsReadMutation.mutate({ id: notification.id });
-                        }
-                      }}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="mt-1">
-                          {notification.type === NotificationType.Cancellation && (
-                            <span className="text-lg">❌</span>
-                          )}
-                          {notification.type === NotificationType.Reschedule && (
-                            <span className="text-lg">🔄</span>
-                          )}
-                          {notification.type === NotificationType.Reminder && (
-                            <span className="text-lg">⏰</span>
-                          )}
-                          {notification.type === NotificationType.Confirmation && (
-                            <span className="text-lg">✅</span>
-                          )}
-                          {notification.type === NotificationType.NewAppointment && (
-                            <span className="text-lg">📅</span>
-                          )}
-                          {notification.type === NotificationType.Other && (
-                            <span className="text-lg">📢</span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className={`text-sm font-medium ${notification.isRead ? 'text-text-50' : 'text-text-100'}`}>
-                              {notification.title}
-                            </h3>
-                            {!notification.isRead && (
-                              <span className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0 mt-1"></span>
-                            )}
-                          </div>
-                          <p className="text-xs text-text-10 mt-1 whitespace-pre-line">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-text-10 mt-2">
-                            {new Date(notification.createdAt).toLocaleString('ru-RU', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </Card>
 
             {/* Contact Support */}
