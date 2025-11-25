@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NewDashboardLayout } from '../../components/dashboard/NewDashboardLayout';
 import { Button, Input, Card, Modal, Spinner } from '../../components/common';
 import { PatientProfileModal } from '../../components/dashboard/PatientProfileModal';
-import { usePatients, useCreatePatient, useUpdatePatient, useDeletePatient } from '../../hooks/usePatients';
+import { usePatients, useCreatePatient, useUpdatePatient, useDeletePatient, useDoctorPatients } from '../../hooks/usePatients';
 import { usePatientVisits } from '../../hooks/usePatientVisits';
 import { useDoctors } from '../../hooks/useUsers';
-import { Patient, AppointmentStatus, Gender } from '../../types/api.types';
+import { Patient, AppointmentStatus, Gender, DoctorPatient, UserRole } from '../../types/api.types';
 import type { PatientVisit } from '../../types/api.types';
 import { formatAppointmentDateTime } from '../../utils/dateFormat';
+import { useAuthStore } from '../../store/useAuthStore';
 
 // Import search icon
 import searchIcon from '../../assets/icons/search.svg';
@@ -17,6 +18,20 @@ import searchIcon from '../../assets/icons/search.svg';
  * Управление пациентами с отображением всех визитов
  */
 export const PatientsPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const isDoctor = user?.role === UserRole.DOCTOR;
+  const doctorId = isDoctor ? user?.id : undefined;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔵 [PATIENTS PAGE] Component mounted:', {
+      userRole: user?.role,
+      isDoctor,
+      doctorId,
+      userId: user?.id,
+    });
+  }, [user, isDoctor, doctorId]);
+
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [search, setSearch] = useState('');
   const [doctorFilter, setDoctorFilter] = useState<string>('');
@@ -27,18 +42,37 @@ export const PatientsPage: React.FC = () => {
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
-  // Загружаем пациентов (для cards view)
+  // Для врачей: загружаем агрегированные данные пациентов
+  const { data: doctorPatientsData, isLoading: isLoadingDoctorPatients, error: doctorPatientsError } = useDoctorPatients(
+    doctorId,
+    { search, limit: 100 }
+  );
+
+  // Debug logging для данных
+  useEffect(() => {
+    if (isDoctor) {
+      console.log('🔵 [PATIENTS PAGE] Doctor patients data:', {
+        isLoading: isLoadingDoctorPatients,
+        hasData: !!doctorPatientsData,
+        patientsCount: doctorPatientsData?.data?.length || 0,
+        total: doctorPatientsData?.meta?.total || 0,
+        error: doctorPatientsError,
+      });
+    }
+  }, [isDoctor, isLoadingDoctorPatients, doctorPatientsData, doctorPatientsError]);
+
+  // Для админов/ассистентов: загружаем пациентов (для cards view)
   const { data: patientsData, isLoading: isLoadingPatients } = usePatients({ search });
   
-  // Загружаем все визиты (для table view)
+  // Для админов/ассистентов: загружаем все визиты (для table view)
   const { data: visitsData, isLoading: isLoadingVisits } = usePatientVisits({
-    search: viewMode === 'table' ? search : undefined,
-    doctorId: doctorFilter || undefined,
-    status: statusFilter || undefined,
+    search: viewMode === 'table' && !isDoctor ? search : undefined,
+    doctorId: !isDoctor && doctorFilter ? doctorFilter : undefined,
+    status: !isDoctor && statusFilter ? statusFilter : undefined,
     limit: 100,
   });
 
-  // Загружаем врачей для фильтра
+  // Загружаем врачей для фильтра (только для админов/ассистентов)
   const { data: doctorsData } = useDoctors();
 
   const createMutation = useCreatePatient();
@@ -142,7 +176,14 @@ export const PatientsPage: React.FC = () => {
     return `${amount.toLocaleString('ru-RU')} ֏`;
   };
 
-  const isLoading = viewMode === 'table' ? isLoadingVisits : isLoadingPatients;
+  // Определяем состояние загрузки и данные в зависимости от роли
+  const isLoading = isDoctor
+    ? isLoadingDoctorPatients
+    : viewMode === 'table'
+    ? isLoadingVisits
+    : isLoadingPatients;
+
+  const doctorPatients: DoctorPatient[] = doctorPatientsData?.data || [];
   const visits: PatientVisit[] = visitsData?.data || [];
   const patients: Patient[] = patientsData?.data || [];
   const doctors = doctorsData || [];
@@ -160,77 +201,96 @@ export const PatientsPage: React.FC = () => {
           <div>
             <h1 className="text-2xl font-semibold text-text-100">Пациенты</h1>
             <p className="text-text-10 text-sm mt-1">
-              {viewMode === 'table' 
+              {isDoctor
+                ? `Всего пациентов: ${doctorPatientsData?.meta.total || 0}`
+                : viewMode === 'table'
                 ? `Всего визитов: ${visitsData?.meta.total || 0}`
                 : `Всего пациентов: ${patientsData?.meta.total || 0}`
               }
             </p>
           </div>
           <div className="flex gap-3">
-            {/* Переключение вида */}
-            <div className="flex border border-stroke rounded-sm overflow-hidden">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-4 py-2 text-sm font-normal transition-smooth ${
-                  viewMode === 'table'
-                    ? 'bg-main-100 text-white'
-                    : 'bg-bg-white text-text-50 hover:bg-bg-primary'
-                }`}
-              >
-                📊 Таблица визитов
-              </button>
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`px-4 py-2 text-sm font-normal transition-smooth ${
-                  viewMode === 'cards'
-                    ? 'bg-main-100 text-white'
-                    : 'bg-bg-white text-text-50 hover:bg-bg-primary'
-                }`}
-              >
-                🃏 Карточки пациентов
-              </button>
-            </div>
-            <Button onClick={() => handleOpenModal()} variant="primary">
-              ➕ Добавить пациента
-            </Button>
+            {/* Переключение вида (только для админов/ассистентов) */}
+            {!isDoctor && (
+              <div className="flex border border-stroke rounded-sm overflow-hidden">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-4 py-2 text-sm font-normal transition-smooth ${
+                    viewMode === 'table'
+                      ? 'bg-main-100 text-white'
+                      : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                  }`}
+                >
+                  📊 Таблица визитов
+                </button>
+                <button
+                  onClick={() => setViewMode('cards')}
+                  className={`px-4 py-2 text-sm font-normal transition-smooth ${
+                    viewMode === 'cards'
+                      ? 'bg-main-100 text-white'
+                      : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                  }`}
+                >
+                  🃏 Карточки пациентов
+                </button>
+              </div>
+            )}
+            {!isDoctor && (
+              <Button onClick={() => handleOpenModal()} variant="primary">
+                ➕ Добавить пациента
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Filters (только для table view) */}
-        {viewMode === 'table' && (
+        {/* Filters */}
+        {isDoctor ? (
+          // Фильтры для врачей
           <Card padding="md">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input
-                placeholder="Поиск по имени, телефону, врачу, процедуре..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                icon={<img src={searchIcon} alt="Search" className="w-4 h-4" />}
-              />
-              <select
-                value={doctorFilter}
-                onChange={e => setDoctorFilter(e.target.value)}
-                className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-              >
-                <option value="">Все врачи</option>
-                {doctors.map(doctor => (
-                  <option key={doctor.id} value={doctor.id}>
-                    {doctor.name} {doctor.specialization ? `(${doctor.specialization})` : ''}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-              >
-                <option value="">Все статусы</option>
-                <option value="pending">Ожидает</option>
-                <option value="confirmed">Подтвержден</option>
-                <option value="completed">Завершен</option>
-                <option value="cancelled">Отменен</option>
-              </select>
-            </div>
+            <Input
+              placeholder="Поиск по имени, телефону, email, процедуре..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              icon={<img src={searchIcon} alt="Search" className="w-4 h-4" />}
+            />
           </Card>
+        ) : (
+          // Фильтры для админов/ассистентов (только для table view)
+          viewMode === 'table' && (
+            <Card padding="md">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input
+                  placeholder="Поиск по имени, телефону, врачу, процедуре..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  icon={<img src={searchIcon} alt="Search" className="w-4 h-4" />}
+                />
+                <select
+                  value={doctorFilter}
+                  onChange={e => setDoctorFilter(e.target.value)}
+                  className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
+                >
+                  <option value="">Все врачи</option>
+                  {doctors.map(doctor => (
+                    <option key={doctor.id} value={doctor.id}>
+                      {doctor.name} {doctor.specialization ? `(${doctor.specialization})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
+                >
+                  <option value="">Все статусы</option>
+                  <option value="pending">Ожидает</option>
+                  <option value="confirmed">Подтвержден</option>
+                  <option value="completed">Завершен</option>
+                  <option value="cancelled">Отменен</option>
+                </select>
+              </div>
+            </Card>
+          )
         )}
 
         {/* Search (только для cards view) */}
@@ -252,8 +312,116 @@ export const PatientsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Table View - Все визиты */}
-        {viewMode === 'table' && !isLoading && (
+        {/* Агрегированная таблица пациентов для врачей */}
+        {isDoctor && !isLoading && (
+          <>
+            {doctorPatients.length === 0 ? (
+              <Card>
+                <div className="text-center py-12 text-text-10 text-sm">
+                  {search ? 'Пациенты не найдены' : 'У вас пока нет пациентов'}
+                </div>
+              </Card>
+            ) : (
+              <Card padding="none" className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-bg-primary border-b border-stroke">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+                        ФИО
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+                        Телефон
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+                        Визитов
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+                        Сумма оплат
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+                        Процедуры
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+                        Последний визит
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-text-50 uppercase tracking-wider">
+                        Статус
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-bg-white divide-y divide-stroke">
+                    {doctorPatients.map((patient: DoctorPatient) => (
+                      <tr
+                        key={patient.patientId}
+                        className="hover:bg-bg-primary transition-smooth cursor-pointer"
+                        onClick={() => setSelectedPatientId(patient.patientId)}
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm font-medium text-text-100">{patient.patientName}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-text-50">{patient.patientPhone}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-text-50">
+                            {patient.patientEmail || '-'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm font-medium text-text-100">
+                            {patient.visitCount}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm font-medium text-text-100">
+                            {formatAmount(patient.totalAmount)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-text-50">
+                            {patient.procedures.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {patient.procedures.slice(0, 2).map((proc, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="px-2 py-0.5 bg-bg-primary rounded text-xs"
+                                  >
+                                    {proc}
+                                  </span>
+                                ))}
+                                {patient.procedures.length > 2 && (
+                                  <span className="text-xs text-text-10">
+                                    +{patient.procedures.length - 2}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              '-'
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="text-sm text-text-50">
+                            {formatAppointmentDateTime(patient.lastVisitDate)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {getStatusBadge(patient.lastVisitStatus)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Table View - Все визиты (для админов/ассистентов) */}
+        {!isDoctor && viewMode === 'table' && !isLoading && (
           <>
             {uniqueVisits.length === 0 ? (
               <Card>

@@ -71,6 +71,70 @@ export async function getAllVisits(req, res, next) {
 }
 
 /**
+ * GET /api/v1/patients/doctor/:doctorId?
+ * Получить агрегированные данные пациентов конкретного врача
+ * Если doctorId не указан, используется ID текущего пользователя (для врачей)
+ */
+export async function getDoctorPatients(req, res, next) {
+  try {
+    const { doctorId } = req.params;
+    const { search, page, limit } = req.query;
+    const clinicId = req.user.clinicId;
+    const userRole = req.user.role;
+    const userId = req.user.userId;
+
+    if (!clinicId) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Clinic ID is required',
+        },
+      });
+    }
+
+    // Если пользователь - врач, он может видеть только своих пациентов
+    // Если пользователь - админ/ассистент, он может видеть пациентов любого врача
+    // Если doctorId не указан в URL, используем userId (для врачей)
+    let finalDoctorId;
+    if (userRole === 'DOCTOR') {
+      finalDoctorId = userId;
+    } else {
+      // Для админов/ассистентов: используем doctorId из params или userId если не указан
+      finalDoctorId = doctorId || userId;
+    }
+
+    if (!finalDoctorId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'Doctor ID is required',
+        },
+      });
+    }
+
+    console.log('🔵 [PATIENT CONTROLLER] getDoctorPatients:', {
+      userRole,
+      userId,
+      doctorId,
+      finalDoctorId,
+      clinicId,
+    });
+
+    const result = await patientService.findDoctorPatients(clinicId, finalDoctorId, {
+      search,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+    });
+
+    successResponse(res, result, 200);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * GET /api/v1/patients/:id
  * Получить пациента по ID
  */

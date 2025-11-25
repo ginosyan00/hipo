@@ -1,5 +1,5 @@
 import api from './api';
-import { ApiResponse, Patient, PaginatedResponse } from '../types/api.types';
+import { ApiResponse, Patient, PaginatedResponse, DoctorPatient } from '../types/api.types';
 
 /**
  * Patient Service
@@ -87,6 +87,26 @@ export const patientService = {
     limit?: number;
   }): Promise<PaginatedResponse<any>> {
     const { data } = await api.get<ApiResponse<PaginatedResponse<any>>>('/patients/visits', {
+      params,
+    });
+    return data.data;
+  },
+
+  /**
+   * Получить агрегированные данные пациентов конкретного врача
+   * Если doctorId не указан, используется ID текущего пользователя (для врачей)
+   */
+  async getDoctorPatients(
+    doctorId: string | undefined,
+    params?: {
+      search?: string;
+      page?: number;
+      limit?: number;
+    }
+  ): Promise<PaginatedResponse<DoctorPatient>> {
+    // Если doctorId не указан, используем пустой путь (backend сам определит по токену)
+    const url = doctorId ? `/patients/doctor/${doctorId}` : '/patients/doctor';
+    const { data } = await api.get<ApiResponse<PaginatedResponse<DoctorPatient>>>(url, {
       params,
     });
     return data.data;

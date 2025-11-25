@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { patientService } from '../services/patient.service';
-import { Patient } from '../types/api.types';
+import { Patient, DoctorPatient, PaginatedResponse } from '../types/api.types';
 
 /**
  * React Query Hooks для пациентов
@@ -54,6 +54,21 @@ export function useDeletePatient() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patients'] });
     },
+  });
+}
+
+/**
+ * Hook для получения агрегированных данных пациентов врача
+ */
+export function useDoctorPatients(
+  doctorId: string | undefined,
+  params?: { search?: string; page?: number; limit?: number }
+) {
+  return useQuery<PaginatedResponse<DoctorPatient>>({
+    queryKey: ['doctorPatients', doctorId, params],
+    queryFn: () => patientService.getDoctorPatients(doctorId!, params),
+    enabled: !!doctorId,
+    staleTime: 30000, // 30 секунд
   });
 }
 

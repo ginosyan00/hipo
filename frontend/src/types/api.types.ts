@@ -246,6 +246,24 @@ export interface PatientVisit {
   updatedAt: Date | string;
 }
 
+/**
+ * Агрегированные данные пациента врача
+ * Группирует все визиты пациента и показывает статистику
+ */
+export interface DoctorPatient {
+  patientId: string;
+  patientName: string;
+  patientPhone: string;
+  patientEmail?: string;
+  patientDateOfBirth?: Date | string;
+  patientGender?: string;
+  visitCount: number; // Количество визитов
+  totalAmount: number; // Общая сумма оплат
+  lastVisitDate: Date | string; // Дата последнего визита
+  lastVisitStatus: AppointmentStatus; // Статус последнего визита
+  procedures: string[]; // Список процедур
+}
+
 export interface Notification {
   id: string;
   clinicId: string;

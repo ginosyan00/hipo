@@ -9,6 +9,7 @@ interface CreateAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  defaultDoctorId?: string; // Опциональный ID врача для автоматического выбора
 }
 
 /**
@@ -19,6 +20,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  defaultDoctorId,
 }) => {
   const [doctorId, setDoctorId] = useState('');
   const [patientId, setPatientId] = useState('');
@@ -43,6 +45,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
         setIsDoctorsLoading(true);
         const doctorsList = await userService.getDoctors();
         setDoctors(doctorsList);
+        // Если передан defaultDoctorId, автоматически выбираем этого врача
+        if (defaultDoctorId && doctorsList.find(d => d.id === defaultDoctorId)) {
+          setDoctorId(defaultDoctorId);
+        }
       } catch (err) {
         console.error('Ошибка загрузки врачей:', err);
       } finally {
@@ -52,7 +58,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
     if (isOpen) {
       loadDoctors();
     }
-  }, [isOpen]);
+  }, [isOpen, defaultDoctorId]);
 
   // Сброс формы при открытии/закрытии
   useEffect(() => {
@@ -65,8 +71,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
       setReason('');
       setNotes('');
       setError('');
+    } else if (defaultDoctorId) {
+      // Если модальное окно открывается и есть defaultDoctorId, устанавливаем его
+      setDoctorId(defaultDoctorId);
     }
-  }, [isOpen]);
+  }, [isOpen, defaultDoctorId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,6 +182,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
               onChange={e => setDoctorId(e.target.value)}
               className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
               required
+              disabled={!!defaultDoctorId} // Блокируем выбор, если передан defaultDoctorId
             >
               <option value="">Выберите врача</option>
               {doctors.map(doctor => (
@@ -181,6 +191,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                 </option>
               ))}
             </select>
+          )}
+          {defaultDoctorId && (
+            <p className="text-xs text-text-10 mt-1">
+              Врач выбран автоматически (текущий пользователь)
+            </p>
           )}
         </div>
 

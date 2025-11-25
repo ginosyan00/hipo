@@ -508,3 +508,139 @@ export async function findAllVisits(clinicId, options = {}) {
     },
   };
 }
+
+/**
+ * Получить агрегированные данные пациентов врача
+ * Группирует пациентов и показывает: количество визитов, сумма оплат, последний визит, процедуры
+ * @param {string} clinicId - ID клиники
+ * @param {string} doctorId - ID врача
+ * @param {object} options - Опции (search, page, limit)
+ * @returns {Promise<object>} { patients, meta }
+ */
+export async function findDoctorPatients(clinicId, doctorId, options = {}) {
+  const { search, page = 1, limit = 20 } = options;
+  const skip = (page - 1) * limit;
+
+  console.log('🔵 [PATIENT SERVICE] findDoctorPatients:', { clinicId, doctorId, search, page, limit });
+
+  // Получаем все appointments врача с полной информацией
+  const where = {
+    clinicId,
+    doctorId,
+    // Показываем все статусы, но можно фильтровать по completed если нужно
+  };
+
+  const appointments = await prisma.appointment.findMany({
+    where,
+    include: {
+      patient: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          dateOfBirth: true,
+          gender: true,
+        },
+      },
+    },
+    orderBy: { appointmentDate: 'desc' },
+  });
+
+  console.log('🔵 [PATIENT SERVICE] Найдено appointments:', appointments.length);
+
+  // Группируем по patientId и агрегируем данные
+  const patientMap = new Map();
+
+  for (const apt of appointments) {
+    const patientId = apt.patientId;
+    
+    if (!patientMap.has(patientId)) {
+      // Первый визит этого пациента
+      patientMap.set(patientId, {
+        patientId: apt.patient.id,
+        patientName: apt.patient.name,
+        patientPhone: apt.patient.phone,
+        patientEmail: apt.patient.email,
+        patientDateOfBirth: apt.patient.dateOfBirth,
+        patientGender: apt.patient.gender,
+        visitCount: 1,
+        totalAmount: apt.amount || 0,
+        lastVisitDate: apt.appointmentDate,
+        lastVisitStatus: apt.status,
+        procedures: apt.reason ? [apt.reason] : [],
+        appointments: [apt],
+      });
+    } else {
+      // Добавляем данные к существующему пациенту
+      const patientData = patientMap.get(patientId);
+      patientData.visitCount += 1;
+      patientData.totalAmount += (apt.amount || 0);
+      
+      // Обновляем последний визит (appointments уже отсортированы по дате desc)
+      if (new Date(apt.appointmentDate) > new Date(patientData.lastVisitDate)) {
+        patientData.lastVisitDate = apt.appointmentDate;
+        patientData.lastVisitStatus = apt.status;
+      }
+      
+      // Добавляем процедуру если её еще нет
+      if (apt.reason && !patientData.procedures.includes(apt.reason)) {
+        patientData.procedures.push(apt.reason);
+      }
+      
+      patientData.appointments.push(apt);
+    }
+  }
+
+  // Преобразуем Map в массив
+  let patients = Array.from(patientMap.values());
+
+  // Фильтруем по поиску (если указан)
+  if (search) {
+    const searchLower = search.toLowerCase();
+    patients = patients.filter(p => {
+      return (
+        p.patientName.toLowerCase().includes(searchLower) ||
+        p.patientPhone.includes(search) ||
+        (p.patientEmail && p.patientEmail.toLowerCase().includes(searchLower)) ||
+        p.procedures.some(proc => proc.toLowerCase().includes(searchLower))
+      );
+    });
+  }
+
+  const total = patients.length;
+
+  // Применяем пагинацию
+  const paginatedPatients = patients.slice(skip, skip + limit);
+
+  // Формируем финальный результат
+  const result = paginatedPatients.map(p => ({
+    patientId: p.patientId,
+    patientName: p.patientName,
+    patientPhone: p.patientPhone,
+    patientEmail: p.patientEmail,
+    patientDateOfBirth: p.patientDateOfBirth,
+    patientGender: p.patientGender,
+    visitCount: p.visitCount,
+    totalAmount: p.totalAmount,
+    lastVisitDate: p.lastVisitDate,
+    lastVisitStatus: p.lastVisitStatus,
+    procedures: p.procedures,
+  }));
+
+  console.log('🔵 [PATIENT SERVICE] Результат агрегации:', {
+    totalPatients: total,
+    paginated: result.length,
+    sample: result[0] || null,
+  });
+
+  return {
+    patients: result,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}

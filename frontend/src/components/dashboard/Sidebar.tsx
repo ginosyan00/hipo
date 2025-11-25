@@ -88,6 +88,21 @@ export const Sidebar: React.FC = () => {
                 <span className="text-sm">Dashboard</span>
               </NavLink>
 
+              <NavLink to="/dashboard/doctor/appointments" className={navLinkClass}>
+                <img src={calendarIcon} alt="Appointments" className="w-6 h-6" />
+                <span className="text-sm">Appointment</span>
+              </NavLink>
+
+              <NavLink to="/dashboard/doctor/patients" className={navLinkClass}>
+                <img src={patientIcon} alt="Patients" className="w-6 h-6" />
+                <span className="text-sm">Patient</span>
+              </NavLink>
+
+              <NavLink to="/dashboard/doctor/analytics" className={navLinkClass}>
+                <img src={analyticsIcon} alt="Analytics" className="w-6 h-6" />
+                <span className="text-sm">Analytics</span>
+              </NavLink>
+
               <NavLink to="/dashboard/doctor/settings" className={navLinkClass}>
                 <img src={settingsIcon} alt="Settings" className="w-6 h-6" />
                 <span className="text-sm">Settings</span>
@@ -108,14 +123,14 @@ export const Sidebar: React.FC = () => {
                 <span className="text-sm">Appointment</span>
               </NavLink>
 
-              <NavLink to="/dashboard/doctors" className={navLinkClass}>
-                <img src={doctorIcon} alt="Doctors" className="w-6 h-6" />
-                <span className="text-sm">Doctors</span>
-              </NavLink>
-
               <NavLink to="/dashboard/patients" className={navLinkClass}>
                 <img src={patientIcon} alt="Patients" className="w-6 h-6" />
                 <span className="text-sm">Patient</span>
+              </NavLink>
+
+              <NavLink to="/dashboard/doctors" className={navLinkClass}>
+                <img src={doctorIcon} alt="Doctors" className="w-6 h-6" />
+                <span className="text-sm">Doctors</span>
               </NavLink>
 
               <NavLink to="/dashboard/analytics" className={navLinkClass}>

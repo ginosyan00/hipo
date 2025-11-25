@@ -33,9 +33,20 @@ router.get('/', patientController.getAll);
 router.get('/visits', patientController.getAllVisits);
 
 /**
+ * GET /api/v1/patients/doctor/:doctorId?
+ * Получить агрегированные данные пациентов конкретного врача
+ * Для врачей (DOCTOR) автоматически используется их собственный ID (doctorId в URL игнорируется)
+ * Для админов/ассистентов можно указать doctorId в URL
+ * Доступ: admin, assistant, doctor
+ * ВАЖНО: Этот route должен быть выше /:id, чтобы избежать конфликта
+ */
+router.get('/doctor/:doctorId?', patientController.getDoctorPatients);
+
+/**
  * GET /api/v1/patients/:id
  * Получить пациента по ID
  * Доступ: admin, assistant, doctor
+ * ВАЖНО: Этот route должен быть последним, чтобы не перехватывать другие routes
  */
 router.get('/:id', patientController.getById);
 
