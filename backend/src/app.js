@@ -27,17 +27,24 @@ app.use(
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Log all CORS requests for debugging
+      console.log(`🔵 [CORS] Request from origin: ${origin || 'no origin'}`);
+      
       // Allow requests with no origin (like mobile apps, Postman, curl)
       if (!origin) {
+        console.log(`✅ [CORS] Allowed (no origin)`);
         return callback(null, true);
       }
 
-      // Development mode: allow all localhost origins
+      // Development mode: allow all localhost and local network IP origins
       if (config.nodeEnv === 'development') {
         const localhostRegex = /^http:\/\/localhost:\d+$/;
-        if (localhostRegex.test(origin)) {
+        const localIPRegex = /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+|127\.0\.0\.1):\d+$/;
+        if (localhostRegex.test(origin) || localIPRegex.test(origin)) {
           console.log(`✅ [CORS] Allowed origin: ${origin}`);
           return callback(null, true);
+        } else {
+          console.log(`❌ [CORS] Origin does not match patterns: ${origin}`);
         }
       }
 
@@ -52,6 +59,8 @@ app.use(
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
@@ -64,11 +73,12 @@ app.use('/uploads', (req, res, next) => {
   // Добавляем CORS headers для статических файлов
   const origin = req.headers.origin;
   
-  // Development mode: allow all localhost origins
+  // Development mode: allow all localhost and local network IP origins
   if (config.nodeEnv === 'development') {
     if (origin) {
       const localhostRegex = /^http:\/\/localhost:\d+$/;
-      if (localhostRegex.test(origin)) {
+      const localIPRegex = /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+|127\.0\.0\.1):\d+$/;
+      if (localhostRegex.test(origin) || localIPRegex.test(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Credentials', 'true');
       }
