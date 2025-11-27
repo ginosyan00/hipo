@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useUIStore } from '../../store/useUIStore';
 import { NotificationDropdown } from './NotificationDropdown';
 import { PatientChat } from '../chat/PatientChat';
 import { ClinicChat } from '../chat/ClinicChat';
+import { SearchFilterModal } from './SearchFilterModal';
 import { useUnreadCount } from '../../hooks/useChat';
 
 // Import icons
@@ -20,6 +21,7 @@ export const Header: React.FC = () => {
   const toggleSidebar = useUIStore(state => state.toggleSidebar);
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
   const [isChatOpen, setIsChatOpen] = React.useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const { unreadCount } = useUnreadCount();
 
   return (
@@ -43,12 +45,14 @@ export const Header: React.FC = () => {
           <img 
             src={searchIcon} 
             alt="Search" 
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px]"
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] pointer-events-none"
           />
           <input
             type="text"
             placeholder="Search..."
-            className="w-full pl-11 pr-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm placeholder-text-10 focus:outline-none focus:border-main-100 transition-smooth"
+            onClick={() => setIsSearchModalOpen(true)}
+            readOnly
+            className="w-full pl-11 pr-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm placeholder-text-10 focus:outline-none focus:border-main-100 transition-smooth cursor-pointer"
           />
         </div>
 
@@ -139,6 +143,12 @@ export const Header: React.FC = () => {
           width="450px"
         />
       ) : null}
+
+      {/* Search Filter Modal */}
+      <SearchFilterModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+      />
     </header>
   );
 };

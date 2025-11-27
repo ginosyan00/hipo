@@ -7,6 +7,8 @@ import { CreateAppointmentModal } from '../../components/dashboard/CreateAppoint
 import { CompleteAppointmentModal } from '../../components/dashboard/CompleteAppointmentModal';
 import { CancelAppointmentModal } from '../../components/dashboard/CancelAppointmentModal';
 import { EditAmountModal } from '../../components/dashboard/EditAmountModal';
+import { MonthlyCalendarView } from '../../components/dashboard/MonthlyCalendarView';
+import { WeeklyCalendarView } from '../../components/dashboard/WeeklyCalendarView';
 import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '../../hooks/useAppointments';
 import { userService } from '../../services/user.service';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -23,6 +25,7 @@ export const AppointmentsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthStore(state => state.user);
   const isDoctor = user?.role === 'DOCTOR';
+  const isClinic = user?.role === 'CLINIC';
   
   // Инициализация фильтров из URL параметров
   // Для врачей фильтр по врачу устанавливается автоматически и не может быть изменен
@@ -34,8 +37,27 @@ export const AppointmentsPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get('category') || '');
   const [categoryInput, setCategoryInput] = useState<string>(searchParams.get('category') || ''); // Для debounce
   
-  // Вид отображения (table/cards)
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  // Вид отображения (table/cards/monthly/weekly)
+  // Календарные виды доступны только для CLINIC
+  // Для CLINIC по умолчанию 'table', для других ролей 'cards'
+  const [viewMode, setViewMode] = useState<'table' | 'cards' | 'monthly' | 'weekly'>(() => {
+    const savedView = searchParams.get('view') as 'table' | 'cards' | 'monthly' | 'weekly';
+    if (savedView) {
+      // Если сохранённый вид - 'cards' и пользователь CLINIC, переключаем на 'table'
+      if (savedView === 'cards' && user?.role === 'CLINIC') {
+        return 'table';
+      }
+      return savedView;
+    }
+    // По умолчанию для CLINIC - 'table', для других - 'cards'
+    return user?.role === 'CLINIC' ? 'table' : 'cards';
+  });
+  
+  // Текущая дата для календаря (для навигации по месяцам/неделям)
+  const [currentCalendarDate, setCurrentCalendarDate] = useState<Date>(() => {
+    const dateParam = searchParams.get('calendarDate');
+    return dateParam ? new Date(dateParam) : new Date();
+  });
   
   // Модальное окно создания приёма
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -59,6 +81,13 @@ export const AppointmentsPage: React.FC = () => {
   
   // Флаг для отслеживания первой инициализации
   const isInitialMount = useRef(true);
+
+  // Автоматическое переключение вида для CLINIC, если выбран 'cards'
+  useEffect(() => {
+    if (isClinic && viewMode === 'cards') {
+      setViewMode('table');
+    }
+  }, [isClinic, viewMode]);
 
   // Загрузка списка врачей для фильтра
   useEffect(() => {
@@ -87,7 +116,7 @@ export const AppointmentsPage: React.FC = () => {
     };
   }, [categoryInput]);
 
-  // Синхронизация фильтров с URL параметрами
+  // Синхронизация фильтров и вида с URL параметрами
   // Обновляем URL только когда фильтры изменяются пользователем (не при первой загрузке)
   useEffect(() => {
     // Пропускаем обновление URL при первой загрузке (фильтры уже инициализированы из URL)
@@ -103,10 +132,14 @@ export const AppointmentsPage: React.FC = () => {
     if (timeFilter) params.set('time', timeFilter);
     if (weekFilter) params.set('week', weekFilter);
     if (categoryFilter) params.set('category', categoryFilter);
+    if (viewMode) params.set('view', viewMode);
+    if (currentCalendarDate) {
+      params.set('calendarDate', currentCalendarDate.toISOString());
+    }
     
     // Обновляем URL без перезагрузки страницы
     setSearchParams(params, { replace: true });
-  }, [statusFilter, dateFilter, doctorFilter, timeFilter, weekFilter, categoryFilter, setSearchParams]);
+  }, [statusFilter, dateFilter, doctorFilter, timeFilter, weekFilter, categoryFilter, viewMode, currentCalendarDate, setSearchParams]);
 
   // По умолчанию исключаем завершенные приёмы (completed) из раздела Appointments
   // Они должны отображаться только в разделе Patients
@@ -260,6 +293,33 @@ export const AppointmentsPage: React.FC = () => {
   };
 
   /**
+   * Обработчик выбора приёма в календаре
+   */
+  const handleSelectAppointment = (appointment: Appointment) => {
+    // Можно открыть модальное окно с деталями или выполнить другое действие
+    console.log('Выбран приём:', appointment);
+    // Для начала просто показываем информацию в консоли
+    // В будущем можно добавить модальное окно с деталями
+  };
+
+  /**
+   * Обработчик выбора слота времени в календаре (для создания нового приёма)
+   */
+  const handleSelectSlot = (slotInfo: { start: Date; end: Date }) => {
+    // Открываем модальное окно создания приёма с предзаполненной датой
+    console.log('Выбран слот:', slotInfo);
+    setIsCreateModalOpen(true);
+    // TODO: Передать выбранную дату в модальное окно создания
+  };
+
+  /**
+   * Обработчик навигации по календарю (месяц/неделя)
+   */
+  const handleCalendarNavigate = (date: Date) => {
+    setCurrentCalendarDate(date);
+  };
+
+  /**
    * Обработчик сохранения новой суммы
    */
   const handleUpdateAmount = async (appointmentId: string, amount: number) => {
@@ -394,29 +454,6 @@ export const AppointmentsPage: React.FC = () => {
             </p>
           </div>
           <div className="flex gap-3">
-            {/* Переключение вида */}
-            <div className="flex border border-stroke rounded-sm overflow-hidden">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-4 py-2 text-sm font-normal transition-smooth ${
-                  viewMode === 'table'
-                    ? 'bg-main-100 text-white'
-                    : 'bg-bg-white text-text-50 hover:bg-bg-primary'
-                }`}
-              >
-                📊 Таблица
-              </button>
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`px-4 py-2 text-sm font-normal transition-smooth ${
-                  viewMode === 'cards'
-                    ? 'bg-main-100 text-white'
-                    : 'bg-bg-white text-text-50 hover:bg-bg-primary'
-                }`}
-              >
-                🃏 Карточки
-              </button>
-            </div>
             <Button variant="primary" onClick={() => setIsCreateModalOpen(true)}>
               ➕ Создать приём
             </Button>
@@ -562,6 +599,60 @@ export const AppointmentsPage: React.FC = () => {
         )}
       </Card>
 
+      {/* Переключение вида - между фильтрами и таблицей */}
+      <div className="flex justify-center items-center gap-3">
+        <div className="flex border border-stroke rounded-sm overflow-hidden">
+          <button
+            onClick={() => setViewMode('table')}
+            className={`px-4 py-2 text-sm font-normal transition-smooth ${
+              viewMode === 'table'
+                ? 'bg-main-100 text-white'
+                : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+            }`}
+          >
+            📊 Таблица
+          </button>
+          {/* Кнопка "Карточки" доступна только для не-CLINIC ролей (например, DOCTOR) */}
+          {!isClinic && (
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-4 py-2 text-sm font-normal transition-smooth ${
+                viewMode === 'cards'
+                  ? 'bg-main-100 text-white'
+                  : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+              }`}
+            >
+              🃏 Карточки
+            </button>
+          )}
+          {/* Календарные виды доступны только для CLINIC */}
+          {isClinic && (
+            <>
+              <button
+                onClick={() => setViewMode('monthly')}
+                className={`px-4 py-2 text-sm font-normal transition-smooth ${
+                  viewMode === 'monthly'
+                    ? 'bg-main-100 text-white'
+                    : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                }`}
+              >
+                📅 Месяц
+              </button>
+              <button
+                onClick={() => setViewMode('weekly')}
+                className={`px-4 py-2 text-sm font-normal transition-smooth ${
+                  viewMode === 'weekly'
+                    ? 'bg-main-100 text-white'
+                    : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                }`}
+              >
+                📆 Неделя
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Appointments List */}
       {isInitialLoading ? (
         <Card>
@@ -569,7 +660,7 @@ export const AppointmentsPage: React.FC = () => {
             <Spinner size="lg" />
           </div>
         </Card>
-      ) : appointments.length === 0 ? (
+      ) : (appointments.length === 0 && viewMode !== 'monthly' && viewMode !== 'weekly') ? (
         <Card>
           <div className="text-center py-12 text-text-10 text-sm">
             Приёмы не найдены
@@ -586,6 +677,30 @@ export const AppointmentsPage: React.FC = () => {
               errorMessages={errorMessages}
             />
           </div>
+        </Card>
+      ) : viewMode === 'monthly' ? (
+        <Card padding="md" className={`transition-opacity duration-500 ease-out will-change-opacity ${isFetching ? 'opacity-95' : 'opacity-100'}`}>
+          <MonthlyCalendarView
+            appointments={appointments}
+            onSelectAppointment={handleSelectAppointment}
+            onSelectSlot={handleSelectSlot}
+            currentDate={currentCalendarDate}
+            onNavigate={handleCalendarNavigate}
+            currentView="monthly"
+            isClinicAdmin={isClinic}
+          />
+        </Card>
+      ) : viewMode === 'weekly' ? (
+        <Card padding="md" className={`transition-opacity duration-500 ease-out will-change-opacity ${isFetching ? 'opacity-95' : 'opacity-100'}`}>
+          <WeeklyCalendarView
+            appointments={appointments}
+            onSelectAppointment={handleSelectAppointment}
+            onSelectSlot={handleSelectSlot}
+            currentDate={currentCalendarDate}
+            onNavigate={handleCalendarNavigate}
+            currentView="weekly"
+            isClinicAdmin={isClinic}
+          />
         </Card>
       ) : (
         <div className={`space-y-4 transition-opacity duration-500 ease-out will-change-opacity ${isFetching ? 'opacity-95' : 'opacity-100'}`}>
