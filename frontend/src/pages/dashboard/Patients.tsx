@@ -32,12 +32,13 @@ export const PatientsPage: React.FC = () => {
     });
   }, [user, isDoctor, doctorId]);
 
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  // По умолчанию показываем карточки пациентов (всех пациентов клиники)
+  // Это гарантирует, что раздел Patients показывает всех пациентов, связанных с клиникой
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [search, setSearch] = useState('');
   const [doctorFilter, setDoctorFilter] = useState<string>('');
-  // По умолчанию показываем только завершенные приёмы (completed) в режиме таблицы
-  // Это гарантирует, что раздел Patients показывает только пациентов с завершенными визитами
-  const [statusFilter, setStatusFilter] = useState<string>('completed');
+  // По умолчанию показываем все статусы (пустая строка = все статусы)
+  const [statusFilter, setStatusFilter] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);

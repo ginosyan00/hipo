@@ -20,6 +20,8 @@ export async function getAll(req, res, next) {
       page,
       limit,
       clinicId,
+      userRole: req.user.role,
+      userId: req.user.userId,
       query: req.query,
     });
 
@@ -41,6 +43,8 @@ export async function getAll(req, res, next) {
 
     console.log('🔵 [PATIENT CONTROLLER] getAll - Result:', {
       search,
+      clinicId,
+      userRole: req.user.role,
       totalPatients: result.patients?.length || 0,
       meta: result.meta,
       samplePatients: result.patients?.slice(0, 3).map(p => ({ id: p.id, name: p.name, phone: p.phone })) || [],

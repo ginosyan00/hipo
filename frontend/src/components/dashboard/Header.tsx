@@ -43,12 +43,23 @@ export const Header: React.FC = () => {
           <img 
             src={searchIcon} 
             alt="Search" 
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px]"
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] pointer-events-none"
           />
           <input
             type="text"
             placeholder="Search..."
-            className="w-full pl-11 pr-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm placeholder-text-10 focus:outline-none focus:border-main-100 transition-smooth"
+            onClick={(e) => {
+              // Отправляем событие для открытия модального окна фильтров
+              window.dispatchEvent(new CustomEvent('openSearchFilter'));
+              e.currentTarget.blur();
+            }}
+            onFocus={(e) => {
+              // При фокусе также открываем модальное окно
+              window.dispatchEvent(new CustomEvent('openSearchFilter'));
+              e.currentTarget.blur();
+            }}
+            className="w-full pl-11 pr-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm placeholder-text-10 focus:outline-none focus:border-main-100 transition-smooth cursor-pointer"
+            readOnly
           />
         </div>
 

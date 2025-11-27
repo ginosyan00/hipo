@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button, Card, Input, Modal, Spinner, BackButton, Calendar } from '../../components/common';
 import { CertificateGallery } from '../../components/public/CertificateGallery';
+import { ClinicSearchFilterModal, ClinicFilters } from '../../components/public/ClinicSearchFilterModal';
 import { useClinic, useClinicDoctors, useCreatePublicAppointment } from '../../hooks/usePublic';
 import { useAuthStore } from '../../store/useAuthStore';
 
 // Import icons
 import hippocratesLogo from '../../assets/icons/hippocrates-logo.png';
 import doctorIcon from '../../assets/icons/doctor.svg';
+import searchIcon from '../../assets/icons/search.svg';
 
 /**
  * Clinic Page - Figma Design Style
@@ -27,6 +29,18 @@ export const ClinicPage: React.FC = () => {
   const user = useAuthStore(state => state.user);
   const isAuthenticated = useAuthStore(state => state.isAuthenticated);
   const logout = useAuthStore(state => state.logout);
+
+  // Search filter state
+  const [isSearchFilterOpen, setIsSearchFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<ClinicFilters>({
+    doctor: '',
+    status: '',
+    date: '',
+    time: '',
+    week: '',
+    category: '',
+    searchText: '',
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -200,6 +214,58 @@ export const ClinicPage: React.FC = () => {
 
   const workingHours = clinic.workingHours || {};
 
+  // Filter doctors based on filters
+  const filteredDoctors = useMemo(() => {
+    if (!doctors || doctors.length === 0) return [];
+
+    return doctors.filter(doctor => {
+      // Filter by doctor ID
+      if (filters.doctor && doctor.id !== filters.doctor) {
+        return false;
+      }
+
+      // Filter by search text (name or specialization)
+      if (filters.searchText) {
+        const searchLower = filters.searchText.toLowerCase();
+        const nameMatch = doctor.name?.toLowerCase().includes(searchLower);
+        const specializationMatch = doctor.specialization?.toLowerCase().includes(searchLower);
+        if (!nameMatch && !specializationMatch) {
+          return false;
+        }
+      }
+
+      // Filter by category (specialization)
+      if (filters.category) {
+        const categoryLower = filters.category.toLowerCase();
+        if (!doctor.specialization?.toLowerCase().includes(categoryLower)) {
+          return false;
+        }
+      }
+
+      // Note: Status, date, time, week filters would require additional data
+      // about doctor availability, which is not currently available in the doctor object
+      // These filters are kept for future implementation
+
+      return true;
+    });
+  }, [doctors, filters]);
+
+  const handleApplyFilters = (newFilters: ClinicFilters) => {
+    setFilters(newFilters);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({
+      doctor: '',
+      status: '',
+      date: '',
+      time: '',
+      week: '',
+      category: '',
+      searchText: '',
+    });
+  };
+
   return (
     <div className="min-h-screen bg-bg-primary">
       {/* Figma Style Header */}
@@ -321,16 +387,51 @@ export const ClinicPage: React.FC = () => {
 
         {/* Doctors Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-medium text-text-100 mb-6">Наши врачи</h2>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <h2 className="text-2xl font-medium text-text-100">Наши врачи</h2>
+            
+            {/* Search Button */}
+            <button
+              type="button"
+              onClick={() => {
+                console.log('🔍 [CLINIC PAGE] Search button clicked, opening modal');
+                setIsSearchFilterOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm text-text-50 hover:bg-bg-primary hover:border-main-100 transition-smooth cursor-pointer"
+            >
+              <img src={searchIcon} alt="Search" className="w-5 h-5" />
+              <span>Поиск и фильтры</span>
+              {(filters.doctor || filters.status || filters.date || filters.time || filters.week || filters.category || filters.searchText) && (
+                <span className="ml-1 px-2 py-0.5 bg-main-100 text-white text-xs rounded-full">
+                  {(filters.doctor ? 1 : 0) + (filters.status ? 1 : 0) + (filters.date ? 1 : 0) + (filters.time ? 1 : 0) + (filters.week ? 1 : 0) + (filters.category ? 1 : 0) + (filters.searchText ? 1 : 0)}
+                </span>
+              )}
+            </button>
+          </div>
+
           {!doctors || doctors.length === 0 ? (
             <Card>
               <div className="text-center py-12">
                 <p className="text-text-10">Список врачей пока пуст</p>
               </div>
             </Card>
+          ) : filteredDoctors.length === 0 ? (
+            <Card>
+              <div className="text-center py-12">
+                <p className="text-text-10 mb-4">Врачи не найдены по выбранным фильтрам</p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleResetFilters}
+                  className="text-sm font-normal"
+                >
+                  Сбросить фильтры
+                </Button>
+              </div>
+            </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {doctors.map(doctor => (
+              {filteredDoctors.map(doctor => (
                 <Card key={doctor.id} padding="md">
                   <div className="text-center space-y-4">
                     <div className="w-20 h-20 rounded-full overflow-hidden mx-auto border-2 border-stroke bg-main-10 flex items-center justify-center">
@@ -533,6 +634,16 @@ export const ClinicPage: React.FC = () => {
           </form>
         )}
       </Modal>
+
+      {/* Search Filter Modal */}
+      <ClinicSearchFilterModal
+        isOpen={isSearchFilterOpen}
+        onClose={() => setIsSearchFilterOpen(false)}
+        onApply={handleApplyFilters}
+        onReset={handleResetFilters}
+        initialFilters={filters}
+        doctors={doctors || []}
+      />
 
       {/* Footer */}
       <footer className="bg-bg-white border-t border-stroke py-8 mt-20">

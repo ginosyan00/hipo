@@ -53,11 +53,11 @@ router.get('/:id', patientController.getById);
 /**
  * POST /api/v1/patients
  * Создать нового пациента
- * Доступ: ADMIN, DOCTOR
+ * Доступ: ADMIN, CLINIC, DOCTOR
  */
 router.post(
   '/',
-  authorize('ADMIN', 'DOCTOR'),
+  authorize('ADMIN', 'CLINIC', 'DOCTOR'),
   validate(createPatientSchema),
   patientController.create
 );
@@ -65,11 +65,11 @@ router.post(
 /**
  * PUT /api/v1/patients/:id
  * Обновить пациента
- * Доступ: ADMIN, DOCTOR
+ * Доступ: ADMIN, CLINIC, DOCTOR
  */
 router.put(
   '/:id',
-  authorize('ADMIN', 'DOCTOR'),
+  authorize('ADMIN', 'CLINIC', 'DOCTOR'),
   validate(updatePatientSchema),
   patientController.update
 );
@@ -77,9 +77,9 @@ router.put(
 /**
  * DELETE /api/v1/patients/:id
  * Удалить пациента
- * Доступ: только ADMIN
+ * Доступ: ADMIN, CLINIC
  */
-router.delete('/:id', authorize('ADMIN'), patientController.remove);
+router.delete('/:id', authorize('ADMIN', 'CLINIC'), patientController.remove);
 
 export default router;
 

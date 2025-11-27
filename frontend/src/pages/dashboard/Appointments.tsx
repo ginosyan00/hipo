@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { NewDashboardLayout } from '../../components/dashboard/NewDashboardLayout';
 import { Button, Card, Spinner } from '../../components/common';
 import { AppointmentsListView } from '../../components/dashboard/AppointmentsListView';
@@ -9,6 +9,7 @@ import { CreateAppointmentModal } from '../../components/dashboard/CreateAppoint
 import { CompleteAppointmentModal } from '../../components/dashboard/CompleteAppointmentModal';
 import { CancelAppointmentModal } from '../../components/dashboard/CancelAppointmentModal';
 import { EditAmountModal } from '../../components/dashboard/EditAmountModal';
+import { AppointmentsSearchFilterModal, AppointmentsFilters } from '../../components/dashboard/AppointmentsSearchFilterModal';
 import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '../../hooks/useAppointments';
 import { userService } from '../../services/user.service';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -23,8 +24,12 @@ import { format } from 'date-fns';
  */
 export const AppointmentsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const user = useAuthStore(state => state.user);
   const isDoctor = user?.role === 'DOCTOR';
+  
+  // Модальное окно фильтров
+  const [isSearchFilterOpen, setIsSearchFilterOpen] = useState(false);
   
   // Инициализация фильтров из URL параметров
   // Для врачей фильтр по врачу устанавливается автоматически и не может быть изменен
@@ -110,7 +115,6 @@ export const AppointmentsPage: React.FC = () => {
   const [selectedAppointmentForEdit, setSelectedAppointmentForEdit] = useState<Appointment | null>(null);
   
   const [doctors, setDoctors] = useState<User[]>([]);
-  const [isDoctorsLoading, setIsDoctorsLoading] = useState(true);
   const [errorMessages, setErrorMessages] = useState<Record<string, string>>({});
   const [loadingAppointments, setLoadingAppointments] = useState<Record<string, string>>({});
   
@@ -121,17 +125,31 @@ export const AppointmentsPage: React.FC = () => {
   useEffect(() => {
     const loadDoctors = async () => {
       try {
-        setIsDoctorsLoading(true);
         const doctorsList = await userService.getDoctors();
         setDoctors(doctorsList);
       } catch (err) {
         console.error('Ошибка загрузки врачей:', err);
-      } finally {
-        setIsDoctorsLoading(false);
       }
     };
     loadDoctors();
   }, []);
+
+  // Обработчик открытия модального окна фильтров из Header
+  useEffect(() => {
+    const handleOpenSearchFilter = () => {
+      if (location.pathname.includes('/appointments')) {
+        console.log('🔍 [APPOINTMENTS] Opening search filter modal from Header');
+        setIsSearchFilterOpen(true);
+      }
+    };
+
+    // Слушаем событие открытия модального окна фильтров
+    window.addEventListener('openSearchFilter', handleOpenSearchFilter);
+
+    return () => {
+      window.removeEventListener('openSearchFilter', handleOpenSearchFilter);
+    };
+  }, [location.pathname]);
 
   // Debounce для поля категории - обновляем фильтр только после 500ms паузы в вводе
   useEffect(() => {
@@ -421,49 +439,72 @@ export const AppointmentsPage: React.FC = () => {
           </div>
         )}
         
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-text-100">Приёмы</h1>
-            <p className="text-text-10 text-sm mt-1">
-              {statusFilter 
-                ? `Всего: ${(data as any)?.meta?.total || 0} назначений`
-                : `Активных: ${appointments.length} из ${(data as any)?.meta?.total || 0} назначений`
-              }
-            </p>
-          </div>
-          <div className="flex gap-3 flex-wrap">
-            {/* Для врачей - переключение table/cards */}
-            {!isClinic && (
-            <div className="flex border border-stroke rounded-sm overflow-hidden">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-4 py-2 text-sm font-normal transition-smooth ${
-                  viewMode === 'table'
-                    ? 'bg-main-100 text-white'
-                    : 'bg-bg-white text-text-50 hover:bg-bg-primary'
-                }`}
-              >
-                📊 Таблица
-              </button>
-              <button
-                onClick={() => setViewMode('cards')}
-                className={`px-4 py-2 text-sm font-normal transition-smooth ${
-                  viewMode === 'cards'
-                    ? 'bg-main-100 text-white'
-                    : 'bg-bg-white text-text-50 hover:bg-bg-primary'
-                }`}
-              >
-                🃏 Карточки
-              </button>
-            </div>
-            )}
-            
-            <Button variant="primary" onClick={() => setIsCreateModalOpen(true)}>
-              ➕ Создать приём
-            </Button>
-          </div>
-        </div>
+         {/* Header */}
+         <div className="space-y-4">
+           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+             <div>
+               <h1 className="text-2xl font-semibold text-text-100">Приёмы</h1>
+               <p className="text-text-10 text-sm mt-1">
+                 {statusFilter 
+                   ? `Всего: ${(data as any)?.meta?.total || 0} назначений`
+                   : `Активных: ${appointments.length} из ${(data as any)?.meta?.total || 0} назначений`
+                 }
+               </p>
+             </div>
+             
+             {/* Для врачей - переключение table/cards */}
+             {!isClinic && (
+               <div className="flex border border-stroke rounded-sm overflow-hidden">
+                 <button
+                   onClick={() => setViewMode('table')}
+                   className={`px-4 py-2 text-sm font-normal transition-smooth ${
+                     viewMode === 'table'
+                       ? 'bg-main-100 text-white'
+                       : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                   }`}
+                 >
+                   📊 Таблица
+                 </button>
+                 <button
+                   onClick={() => setViewMode('cards')}
+                   className={`px-4 py-2 text-sm font-normal transition-smooth ${
+                     viewMode === 'cards'
+                       ? 'bg-main-100 text-white'
+                       : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                   }`}
+                 >
+                   🃏 Карточки
+                 </button>
+               </div>
+             )}
+           </div>
+           
+           {/* Кнопка создания приёма в центре на отдельной строке */}
+           <div className="flex justify-center w-full">
+             <button
+               onClick={() => setIsCreateModalOpen(true)}
+               className="
+                 bg-gradient-to-r from-main-100 to-main-100/90 
+                 text-white 
+                 text-2xl 
+                 px-16 py-6 
+                 font-semibold 
+                 rounded-lg
+                 shadow-lg shadow-main-100/30
+                 hover:shadow-xl hover:shadow-main-100/40
+                 hover:from-main-100 hover:to-main-100
+                 transform hover:scale-105
+                 transition-all duration-300 ease-out
+                 flex items-center gap-3
+                 min-w-[320px]
+                 border-2 border-main-100/20
+               "
+             >
+               <span className="text-3xl">➕</span>
+               <span>Создать приём</span>
+             </button>
+           </div>
+         </div>
 
         {/* Statistics Cards */}
         <div className={`grid grid-cols-2 md:grid-cols-5 gap-4 transition-opacity duration-500 ease-out ${isFetching ? 'opacity-95' : 'opacity-100'}`}>
@@ -497,112 +538,53 @@ export const AppointmentsPage: React.FC = () => {
               <p className="text-2xl font-bold text-gray-600 transition-all duration-300">{stats.cancelled}</p>
             </div>
           </Card>
-        </div>
+         </div>
 
-      {/* Filters */}
-      <Card padding="md">
-        <div className={`grid grid-cols-1 md:grid-cols-3 ${isDoctor ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-4`}>
-          {/* Фильтр "Врач" скрыт для врачей, так как они видят только свои назначения */}
-          {!isDoctor && (
-            <div>
-              <label className="block text-sm font-normal text-text-10 mb-2">Врач</label>
-              <select
-                value={doctorFilter}
-                onChange={e => setDoctorFilter(e.target.value)}
-                className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-                disabled={isDoctorsLoading}
-              >
-                <option value="">Все врачи</option>
-                {doctors.map(doctor => (
-                  <option key={doctor.id} value={doctor.id}>
-                    {doctor.name} {doctor.specialization ? `(${doctor.specialization})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-normal text-text-10 mb-2">Статус</label>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-            >
-              <option value="">Все статусы</option>
-              <option value="pending">Ожидает подтверждения</option>
-              <option value="confirmed">Подтвержден</option>
-              <option value="completed">Завершен</option>
-              <option value="cancelled">Отменен</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-normal text-text-10 mb-2">Дата</label>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={e => {
-                setDateFilter(e.target.value);
-                // Очищаем фильтр по неделе при выборе даты
-                if (e.target.value) setWeekFilter('');
-              }}
-              className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-normal text-text-10 mb-2">Время</label>
-            <input
-              type="time"
-              value={timeFilter}
-              onChange={e => setTimeFilter(e.target.value)}
-              className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-normal text-text-10 mb-2">Неделя</label>
-            <input
-              type="week"
-              value={weekFilter}
-              onChange={e => {
-                setWeekFilter(e.target.value);
-                // Очищаем фильтр по дате при выборе недели
-                if (e.target.value) setDateFilter('');
-              }}
-              className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-normal text-text-10 mb-2">Категория</label>
-            <input
-              type="text"
-              value={categoryInput}
-              onChange={e => setCategoryInput(e.target.value)}
-              placeholder="Процедура..."
-              className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-            />
-          </div>
-        </div>
-        {(!isDoctor && doctorFilter || statusFilter || dateFilter || timeFilter || weekFilter || categoryFilter) && (
-          <div className="mt-4 pt-4 border-t border-stroke">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                if (!isDoctor) setDoctorFilter('');
-                setStatusFilter('');
-                setDateFilter('');
-                setTimeFilter('');
-                setWeekFilter('');
-                setCategoryFilter('');
-                setCategoryInput('');
-                // Очищаем URL параметры
-                setSearchParams({}, { replace: true });
-              }}
-            >
-              🔄 Сбросить фильтры
-            </Button>
-          </div>
-        )}
-      </Card>
+       {/* Search Filter Modal */}
+      <AppointmentsSearchFilterModal
+        isOpen={isSearchFilterOpen}
+        onClose={() => setIsSearchFilterOpen(false)}
+        onApply={(newFilters: AppointmentsFilters) => {
+          // Применяем фильтры
+          setDoctorFilter(newFilters.doctor);
+          setStatusFilter(newFilters.status);
+          setDateFilter(newFilters.date);
+          setTimeFilter(newFilters.time);
+          setWeekFilter(newFilters.week);
+          setCategoryFilter(newFilters.category);
+          setCategoryInput(newFilters.category);
+          
+          // Обновляем URL параметры
+          const params = new URLSearchParams();
+          if (newFilters.doctor) params.set('doctor', newFilters.doctor);
+          if (newFilters.status) params.set('status', newFilters.status);
+          if (newFilters.date) params.set('date', newFilters.date);
+          if (newFilters.time) params.set('time', newFilters.time);
+          if (newFilters.week) params.set('week', newFilters.week);
+          if (newFilters.category) params.set('category', newFilters.category);
+          setSearchParams(params, { replace: true });
+        }}
+        onReset={() => {
+          if (!isDoctor) setDoctorFilter('');
+          setStatusFilter('');
+          setDateFilter('');
+          setTimeFilter('');
+          setWeekFilter('');
+          setCategoryFilter('');
+          setCategoryInput('');
+          setSearchParams({}, { replace: true });
+        }}
+        initialFilters={{
+          doctor: doctorFilter,
+          status: statusFilter,
+          date: dateFilter,
+          time: timeFilter,
+          week: weekFilter,
+          category: categoryFilter,
+          searchText: '',
+        }}
+        doctors={doctors}
+      />
 
       {/* Appointments Display - разные виды для CLINIC */}
       {isInitialLoading ? (
