@@ -74,7 +74,7 @@ export const HomePage: React.FC = () => {
             <Link to="/login">
               <Button 
                 className="text-sm font-normal hover:text-white"
-                style={{ 
+                style={{
                   backgroundColor: '#E6F7F6', 
                   color: '#00a79d'
                 }}
