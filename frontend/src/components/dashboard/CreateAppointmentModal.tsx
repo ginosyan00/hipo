@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input, Spinner } from '../common';
 import { useCreateAppointment } from '../../hooks/useAppointments';
-import { usePatients } from '../../hooks/usePatients';
 import { userService } from '../../services/user.service';
+import { patientService } from '../../services/patient.service';
 import { User } from '../../types/api.types';
+import { PatientSearchInput } from './PatientSearchInput';
 
 interface CreateAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   defaultDoctorId?: string; // Опциональный ID врача для автоматического выбора
+  defaultDate?: string; // Опциональная дата для автоматического заполнения (формат: YYYY-MM-DD)
 }
 
 /**
@@ -21,9 +23,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
   onClose,
   onSuccess,
   defaultDoctorId,
+  defaultDate,
 }) => {
   const [doctorId, setDoctorId] = useState('');
   const [patientId, setPatientId] = useState('');
+  const [isGuest, setIsGuest] = useState(false); // Режим гостя
+  const [guestFirstName, setGuestFirstName] = useState('');
+  const [guestLastName, setGuestLastName] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
   const [appointmentTime, setAppointmentTime] = useState('');
   const [duration, setDuration] = useState('30');
@@ -32,7 +39,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
 
   const [doctors, setDoctors] = useState<User[]>([]);
   const [isDoctorsLoading, setIsDoctorsLoading] = useState(true);
-  const { data: patientsData, isLoading: isPatientsLoading } = usePatients();
   const createMutation = useCreateAppointment();
 
   const [error, setError] = useState('');
@@ -65,17 +71,26 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
     if (!isOpen) {
       setDoctorId('');
       setPatientId('');
+      setIsGuest(false);
+      setGuestFirstName('');
+      setGuestLastName('');
+      setGuestPhone('');
       setAppointmentDate('');
       setAppointmentTime('');
       setDuration('30');
       setReason('');
       setNotes('');
       setError('');
-    } else if (defaultDoctorId) {
-      // Если модальное окно открывается и есть defaultDoctorId, устанавливаем его
-      setDoctorId(defaultDoctorId);
+    } else {
+      // Если модальное окно открывается, устанавливаем значения по умолчанию
+      if (defaultDoctorId) {
+        setDoctorId(defaultDoctorId);
+      }
+      if (defaultDate) {
+        setAppointmentDate(defaultDate);
+      }
     }
-  }, [isOpen, defaultDoctorId]);
+  }, [isOpen, defaultDoctorId, defaultDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,9 +102,38 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
       if (!doctorId) {
         throw new Error('Выберите врача');
       }
-      if (!patientId) {
-        throw new Error('Выберите пациента');
+      
+      let finalPatientId = patientId;
+
+      // Если выбран режим гостя, создаём гостевого пациента
+      if (isGuest) {
+        if (!guestFirstName.trim()) {
+          throw new Error('Введите имя гостя');
+        }
+        if (!guestLastName.trim()) {
+          throw new Error('Введите фамилию гостя');
+        }
+        if (!guestPhone.trim()) {
+          throw new Error('Введите телефон гостя');
+        }
+
+        // Создаём гостевого пациента
+        const guestName = `${guestFirstName.trim()} ${guestLastName.trim()}`;
+        const guestPatient = await patientService.create({
+          name: guestName,
+          phone: guestPhone.trim(),
+          status: 'guest',
+        });
+
+        finalPatientId = guestPatient.id;
+        console.log('✅ [CREATE APPOINTMENT MODAL] Гостевой пациент создан:', guestPatient.id);
+      } else {
+        // Проверяем, что выбран пациент
+        if (!patientId) {
+          throw new Error('Выберите пациента');
+        }
       }
+
       if (!appointmentDate) {
         throw new Error('Выберите дату');
       }
@@ -109,7 +153,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
       // Создаём приём
       await createMutation.mutateAsync({
         doctorId,
-        patientId,
+        patientId: finalPatientId,
         appointmentDate: appointmentDateTime.toISOString(),
         duration: parseInt(duration),
         reason: reason || undefined,
@@ -156,8 +200,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
     return '00:00';
   };
 
-  const patients = patientsData?.data || [];
-
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Создать приём" size="lg">
       {error && (
@@ -199,31 +241,102 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
           )}
         </div>
 
-        {/* Пациент */}
+        {/* Переключатель: Зарегистрированный пациент / Гость */}
         <div>
           <label className="block text-sm font-normal text-text-10 mb-2">
-            Пациент <span className="text-red-500">*</span>
+            Тип регистрации
           </label>
-          {isPatientsLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <Spinner size="sm" />
-            </div>
-          ) : (
-            <select
-              value={patientId}
-              onChange={e => setPatientId(e.target.value)}
-              className="block w-full px-4 py-2.5 border border-stroke rounded-sm bg-bg-white text-sm focus:outline-none focus:border-main-100 transition-smooth"
-              required
+          <div className="flex gap-2 border border-stroke rounded-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setIsGuest(false);
+                setPatientId('');
+                setGuestFirstName('');
+                setGuestLastName('');
+                setGuestPhone('');
+              }}
+              className={`flex-1 px-4 py-2 text-sm font-normal transition-smooth ${
+                !isGuest
+                  ? 'bg-main-100 text-white'
+                  : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+              }`}
             >
-              <option value="">Выберите пациента</option>
-              {patients.map(patient => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.name} {patient.phone ? `(${patient.phone})` : ''}
-                </option>
-              ))}
-            </select>
-          )}
+              Зарегистрированный пациент
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsGuest(true);
+                setPatientId('');
+              }}
+              className={`flex-1 px-4 py-2 text-sm font-normal transition-smooth ${
+                isGuest
+                  ? 'bg-main-100 text-white'
+                  : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+              }`}
+            >
+              Гость
+            </button>
+          </div>
         </div>
+
+        {/* Пациент (только для зарегистрированных) */}
+        {!isGuest && (
+          <div>
+            <label className="block text-sm font-normal text-text-10 mb-2">
+              Пациент <span className="text-red-500">*</span>
+            </label>
+            <PatientSearchInput
+              value={patientId}
+              onChange={setPatientId}
+              required={!isGuest}
+              placeholder="Поиск пациента по имени..."
+            />
+          </div>
+        )}
+
+        {/* Данные гостя (только для гостей) */}
+        {isGuest && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-normal text-text-10 mb-2">
+                  Имя <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="Имя"
+                  value={guestFirstName}
+                  onChange={e => setGuestFirstName(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-normal text-text-10 mb-2">
+                  Фамилия <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="Фамилия"
+                  value={guestLastName}
+                  onChange={e => setGuestLastName(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-normal text-text-10 mb-2">
+                Телефон <span className="text-red-500">*</span>
+              </label>
+              <Input
+                type="tel"
+                placeholder="+374 98 123456"
+                value={guestPhone}
+                onChange={e => setGuestPhone(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+        )}
 
         {/* Дата и время */}
         <div className="grid grid-cols-2 gap-4">

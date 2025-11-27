@@ -20,16 +20,8 @@ export async function findAll(clinicId, options = {}) {
     clinicId, // ВСЕГДА фильтруем по clinicId!
   };
 
-  // Поиск по имени или телефону (SQLite не поддерживает mode: 'insensitive')
-  if (search) {
-    where.OR = [
-      { name: { contains: search } },
-      { phone: { contains: search } },
-      { email: { contains: search } },
-    ];
-  }
-
-  // Получаем всех пациентов (без пагинации для дедупликации)
+  // Получаем всех пациентов (без пагинации для дедупликации и поиска)
+  // Поиск будем делать на уровне приложения для case-insensitive поиска
   const allPatients = await prisma.patient.findMany({
     where,
     orderBy: { createdAt: 'desc' },
@@ -58,8 +50,67 @@ export async function findAll(clinicId, options = {}) {
     }
   }
 
-  const uniquePatients = Array.from(uniquePatientsMap.values());
+  let uniquePatients = Array.from(uniquePatientsMap.values());
+
+  // Фильтруем по поиску (case-insensitive) на уровне приложения
+  if (search && search.trim()) {
+    const searchLower = search.toLowerCase().trim();
+    const searchOriginal = search.trim();
+    const beforeFilter = uniquePatients.length;
+    
+    console.log('🔵 [PATIENT SERVICE] Начало поиска:', {
+      searchQuery: search,
+      searchLower,
+      searchOriginal,
+      totalPatientsBeforeFilter: beforeFilter,
+      sampleNames: uniquePatients.slice(0, 5).map(p => p.name),
+    });
+    
+    uniquePatients = uniquePatients.filter(patient => {
+      const nameMatch = patient.name && patient.name.toLowerCase().includes(searchLower);
+      const phoneMatch = patient.phone && patient.phone.includes(searchOriginal);
+      const emailMatch = patient.email && patient.email.toLowerCase().includes(searchLower);
+      
+      const matches = nameMatch || phoneMatch || emailMatch;
+      
+      if (matches) {
+        console.log('✅ [PATIENT SERVICE] Найден пациент:', {
+          id: patient.id,
+          name: patient.name,
+          phone: patient.phone,
+          email: patient.email,
+          nameMatch,
+          phoneMatch,
+          emailMatch,
+        });
+      }
+      
+      return matches;
+    });
+    
+    // Логирование для отладки
+    console.log('🔵 [PATIENT SERVICE] Результат поиска:', {
+      searchQuery: search,
+      beforeFilter,
+      afterFilter: uniquePatients.length,
+      found: uniquePatients.map(p => ({ id: p.id, name: p.name, phone: p.phone })),
+    });
+  }
+
   const total = uniquePatients.length;
+
+  // Логирование для отладки (когда нет поиска, показываем всех)
+  if (!search || !search.trim()) {
+    console.log('🔵 [PATIENT SERVICE] Загрузка всех пациентов:', {
+      clinicId,
+      totalBeforeDedup: allPatients.length,
+      totalAfterDedup: uniquePatients.length,
+      limit,
+      page,
+      skip,
+      willReturn: Math.min(uniquePatients.length - skip, limit),
+    });
+  }
 
   // Применяем пагинацию после дедупликации
   const paginatedPatients = uniquePatients.slice(skip, skip + limit);
@@ -345,6 +396,7 @@ export async function create(clinicId, data) {
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
       gender: data.gender || null,
       notes: data.notes || null,
+      status: data.status || 'registered', // Статус пациента: registered (по умолчанию) или guest
     },
   });
 
@@ -372,6 +424,7 @@ export async function update(clinicId, patientId, data) {
       dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
       gender: data.gender,
       notes: data.notes,
+      status: data.status, // Статус пациента
     },
   });
 

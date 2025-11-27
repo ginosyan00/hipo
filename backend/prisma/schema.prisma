@@ -106,6 +106,7 @@ model Patient {
   dateOfBirth  DateTime?
   gender       String?  // male | female | other
   notes        String?
+  status       String   @default("registered")  // registered | guest
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -117,6 +118,7 @@ model Patient {
 
   @@index([clinicId])
   @@index([phone])
+  @@index([status])
   @@map("patients")
 }
 

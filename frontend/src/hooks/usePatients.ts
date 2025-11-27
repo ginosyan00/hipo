@@ -11,6 +11,9 @@ export function usePatients(params?: { search?: string; page?: number; limit?: n
     queryKey: ['patients', params],
     queryFn: () => patientService.getAll(params),
     staleTime: 30000, // 30 секунд
+    // Всегда загружаем данные, даже если они в кеше
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 }
 

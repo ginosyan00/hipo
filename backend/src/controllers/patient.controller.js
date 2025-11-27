@@ -15,6 +15,14 @@ export async function getAll(req, res, next) {
     const { search, page, limit } = req.query;
     const clinicId = req.user.clinicId;
 
+    console.log('🔵 [PATIENT CONTROLLER] getAll - Request:', {
+      search,
+      page,
+      limit,
+      clinicId,
+      query: req.query,
+    });
+
     if (!clinicId) {
       return res.status(403).json({
         success: false,
@@ -31,8 +39,16 @@ export async function getAll(req, res, next) {
       limit: limit ? parseInt(limit) : 20,
     });
 
+    console.log('🔵 [PATIENT CONTROLLER] getAll - Result:', {
+      search,
+      totalPatients: result.patients?.length || 0,
+      meta: result.meta,
+      samplePatients: result.patients?.slice(0, 3).map(p => ({ id: p.id, name: p.name, phone: p.phone })) || [],
+    });
+
     successResponse(res, result, 200);
   } catch (error) {
+    console.error('🔴 [PATIENT CONTROLLER] getAll - Error:', error);
     next(error);
   }
 }

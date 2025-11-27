@@ -25,6 +25,7 @@ export const createPatientSchema = Joi.object({
   dateOfBirth: Joi.date().iso().max('now').optional().allow(null),
   gender: Joi.string().valid('male', 'female', 'other').optional().allow(null),
   notes: Joi.string().max(1000).allow('').optional(),
+  status: Joi.string().valid('registered', 'guest').optional().default('registered'),
 });
 
 /**

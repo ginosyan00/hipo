@@ -11,9 +11,28 @@ export const patientService = {
    * Получить всех пациентов
    */
   async getAll(params?: { search?: string; page?: number; limit?: number }): Promise<PaginatedResponse<Patient>> {
+    console.log('🔵 [PATIENT SERVICE FRONTEND] Запрос пациентов:', params);
     const { data } = await api.get<ApiResponse<PaginatedResponse<Patient>>>('/patients', {
       params,
     });
+    console.log('🔵 [PATIENT SERVICE FRONTEND] Ответ:', {
+      rawResponse: data.data,
+      hasPatients: !!data.data?.patients,
+      hasData: !!data.data?.data,
+      totalPatients: data.data?.patients?.length || data.data?.data?.length || 0,
+      meta: data.data?.meta,
+      sample: (data.data?.patients || data.data?.data || []).slice(0, 3).map((p: Patient) => ({ id: p.id, name: p.name, phone: p.phone })),
+    });
+    
+    // Backend возвращает { patients: [...], meta: {...} }, но наш тип ожидает { data: [...], meta: {...} }
+    // Преобразуем структуру для совместимости
+    if (data.data?.patients) {
+      return {
+        data: data.data.patients,
+        meta: data.data.meta,
+      };
+    }
+    
     return data.data;
   },
 

@@ -168,9 +168,11 @@ export interface Patient {
   name: string;
   phone: string;
   email?: string;
+  avatar?: string; // Avatar/logo пациента
   dateOfBirth?: Date;
   gender?: Gender;
   notes?: string;
+  status?: 'registered' | 'guest'; // Статус пациента: зарегистрированный или гость
   createdAt: Date;
   updatedAt: Date;
   appointments?: Appointment[]; // Полная история визитов

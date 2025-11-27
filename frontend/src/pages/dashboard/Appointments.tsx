@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { NewDashboardLayout } from '../../components/dashboard/NewDashboardLayout';
 import { Button, Card, Spinner } from '../../components/common';
-import { AppointmentsTable } from '../../components/dashboard/AppointmentsTable';
+import { AppointmentsListView } from '../../components/dashboard/AppointmentsListView';
+import { AppointmentsMonthlyCalendar } from '../../components/dashboard/AppointmentsMonthlyCalendar';
+import { AppointmentsWeeklyView } from '../../components/dashboard/AppointmentsWeeklyView';
 import { CreateAppointmentModal } from '../../components/dashboard/CreateAppointmentModal';
 import { CompleteAppointmentModal } from '../../components/dashboard/CompleteAppointmentModal';
 import { CancelAppointmentModal } from '../../components/dashboard/CancelAppointmentModal';
@@ -11,7 +13,7 @@ import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } fro
 import { userService } from '../../services/user.service';
 import { useAuthStore } from '../../store/useAuthStore';
 import { User, Appointment } from '../../types/api.types';
-import { formatAppointmentDateTime } from '../../utils/dateFormat';
+import { format } from 'date-fns';
 
 /**
  * Appointments Page - Figma Design
@@ -34,11 +36,66 @@ export const AppointmentsPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get('category') || '');
   const [categoryInput, setCategoryInput] = useState<string>(searchParams.get('category') || ''); // Для debounce
   
-  // Вид отображения (table/cards)
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  // Вид отображения (list/monthly/weekly) - только для CLINIC
+  const isClinic = user?.role === 'CLINIC' || user?.role === 'ADMIN';
+  
+  // Загружаем сохраненный вид из localStorage при инициализации
+  const [viewType, setViewType] = useState<'list' | 'monthly' | 'weekly'>(() => {
+    try {
+      const saved = localStorage.getItem('appointmentsViewType');
+      if (saved && ['list', 'monthly', 'weekly'].includes(saved)) {
+        return saved as 'list' | 'monthly' | 'weekly';
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки вида из localStorage:', error);
+    }
+    return 'list';
+  });
+  
+  // Для list вида - переключение между table и cards
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>(() => {
+    try {
+      const saved = localStorage.getItem('appointmentsViewMode');
+      if (saved && ['table', 'cards'].includes(saved)) {
+        return saved as 'table' | 'cards';
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки режима из localStorage:', error);
+    }
+    return 'table';
+  });
+  
+  // Сохраняем выбранный вид в localStorage при изменении
+  useEffect(() => {
+    try {
+      if (isClinic) {
+        localStorage.setItem('appointmentsViewType', viewType);
+      }
+    } catch (error) {
+      console.error('Ошибка сохранения вида в localStorage:', error);
+    }
+  }, [viewType, isClinic]);
+  
+  useEffect(() => {
+    try {
+      localStorage.setItem('appointmentsViewMode', viewMode);
+    } catch (error) {
+      console.error('Ошибка сохранения режима в localStorage:', error);
+    }
+  }, [viewMode]);
+  
+  // Функция для установки вида с автоматическим сохранением
+  const handleViewTypeChange = (newViewType: 'list' | 'monthly' | 'weekly') => {
+    setViewType(newViewType);
+    if (newViewType === 'list') {
+      // При переключении на список, сохраняем режим таблицы
+      setViewMode('table');
+    }
+  };
   
   // Модальное окно создания приёма
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalDefaultDate, setCreateModalDefaultDate] = useState<string | undefined>(undefined);
   
   // Модальное окно завершения приёма
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
@@ -127,19 +184,21 @@ export const AppointmentsPage: React.FC = () => {
   // Это гарантирует, что завершенные приёмы не отображаются в разделе Appointments
   // НО: если выбран фильтр "Все статусы" (statusFilter === ''), показываем все приёмы
   const filteredAppointments = React.useMemo(() => {
-    if (!data?.appointments) return [];
+    // API возвращает { appointments: Appointment[], meta: {...} }
+    const appointments = (data as any)?.appointments || [];
+    if (!appointments || appointments.length === 0) return [];
     
     // Если статус выбран явно (не пустая строка), используем данные как есть
     // API уже отфильтровал по статусу
     if (statusFilter && statusFilter.trim() !== '') {
-      return data.appointments;
+      return appointments;
     }
     
     // Если выбран "Все статусы" (пустая строка) или статус не установлен
     // Показываем все приёмы без фильтрации
     // Это позволяет видеть все приёмы, включая завершенные и отмененные
-    return data.appointments;
-  }, [data?.appointments, statusFilter]);
+    return appointments;
+  }, [data, statusFilter]);
 
   /**
    * Обработчик изменения статуса приёма
@@ -149,7 +208,7 @@ export const AppointmentsPage: React.FC = () => {
   const handleStatusChange = async (id: string, newStatus: string) => {
     // Если статус - completed, открываем модальное окно для ввода суммы
     if (newStatus === 'completed') {
-      const appointment = appointments.find(a => a.id === id);
+      const appointment = appointments.find((a: Appointment) => a.id === id);
       if (appointment) {
         setSelectedAppointmentForComplete(appointment);
         setIsCompleteModalOpen(true);
@@ -159,7 +218,7 @@ export const AppointmentsPage: React.FC = () => {
 
     // Если статус - cancelled, открываем модальное окно для ввода причины отмены
     if (newStatus === 'cancelled') {
-      const appointment = appointments.find(a => a.id === id);
+      const appointment = appointments.find((a: Appointment) => a.id === id);
       if (appointment) {
         setSelectedAppointmentForCancel(appointment);
         setIsCancelModalOpen(true);
@@ -301,11 +360,11 @@ export const AppointmentsPage: React.FC = () => {
   // Отслеживаем изменения для плавного исчезновения/появления
   const [displayedAppointments, setDisplayedAppointments] = useState(appointments);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const prevAppointmentIdsRef = useRef<string[]>(appointments.map(a => a.id));
+  const prevAppointmentIdsRef = useRef<string[]>(appointments.map((a: Appointment) => a.id));
   
   // Плавное обновление данных при изменении
   useEffect(() => {
-    const currentIds = appointments.map(a => a.id);
+    const currentIds = appointments.map((a: Appointment) => a.id);
     const prevIds = prevAppointmentIdsRef.current;
     
     // Проверяем, изменился ли состав данных
@@ -337,33 +396,13 @@ export const AppointmentsPage: React.FC = () => {
 
   // Статистика по статусам (считаем из всех данных, включая completed, для правильной статистики)
   // Но отображаем только те, которые не отфильтрованы
-  const allAppointments = data?.appointments || [];
+  const allAppointments = ((data as any)?.appointments || []) as Appointment[];
   const stats = {
     total: allAppointments.length,
-    pending: allAppointments.filter(a => a.status === 'pending').length,
-    confirmed: allAppointments.filter(a => a.status === 'confirmed').length,
-    completed: allAppointments.filter(a => a.status === 'completed').length,
-    cancelled: allAppointments.filter(a => a.status === 'cancelled').length,
-  };
-
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-      confirmed: 'bg-main-10 text-main-100 border-main-100/20',
-      completed: 'bg-secondary-10 text-secondary-100 border-secondary-100/20',
-      cancelled: 'bg-bg-primary text-text-10 border-stroke',
-    };
-    const labels = {
-      pending: 'Ожидает',
-      confirmed: 'Подтвержден',
-      completed: 'Завершен',
-      cancelled: 'Отменен',
-    };
-    return (
-      <span className={`px-3 py-1 border rounded-sm text-xs font-normal ${styles[status as keyof typeof styles]}`}>
-        {labels[status as keyof typeof labels]}
-      </span>
-    );
+    pending: allAppointments.filter((a: Appointment) => a.status === 'pending').length,
+    confirmed: allAppointments.filter((a: Appointment) => a.status === 'confirmed').length,
+    completed: allAppointments.filter((a: Appointment) => a.status === 'completed').length,
+    cancelled: allAppointments.filter((a: Appointment) => a.status === 'cancelled').length,
   };
 
   return (
@@ -388,13 +427,14 @@ export const AppointmentsPage: React.FC = () => {
             <h1 className="text-2xl font-semibold text-text-100">Приёмы</h1>
             <p className="text-text-10 text-sm mt-1">
               {statusFilter 
-                ? `Всего: ${data?.meta.total || 0} назначений`
-                : `Активных: ${appointments.length} из ${data?.meta.total || 0} назначений`
+                ? `Всего: ${(data as any)?.meta?.total || 0} назначений`
+                : `Активных: ${appointments.length} из ${(data as any)?.meta?.total || 0} назначений`
               }
             </p>
           </div>
-          <div className="flex gap-3">
-            {/* Переключение вида */}
+          <div className="flex gap-3 flex-wrap">
+            {/* Для врачей - переключение table/cards */}
+            {!isClinic && (
             <div className="flex border border-stroke rounded-sm overflow-hidden">
               <button
                 onClick={() => setViewMode('table')}
@@ -417,6 +457,8 @@ export const AppointmentsPage: React.FC = () => {
                 🃏 Карточки
               </button>
             </div>
+            )}
+            
             <Button variant="primary" onClick={() => setIsCreateModalOpen(true)}>
               ➕ Создать приём
             </Button>
@@ -562,7 +604,7 @@ export const AppointmentsPage: React.FC = () => {
         )}
       </Card>
 
-      {/* Appointments List */}
+      {/* Appointments Display - разные виды для CLINIC */}
       {isInitialLoading ? (
         <Card>
           <div className="flex justify-center items-center py-12">
@@ -575,221 +617,115 @@ export const AppointmentsPage: React.FC = () => {
             Приёмы не найдены
           </div>
         </Card>
-      ) : viewMode === 'table' ? (
-        <Card padding="md" className={`transition-opacity duration-500 ease-out will-change-opacity ${isFetching ? 'opacity-95' : 'opacity-100'}`}>
-          <div className={isTransitioning ? 'opacity-0 transition-opacity duration-300 ease-out' : 'opacity-100 transition-opacity duration-500 ease-out'}>
-            <AppointmentsTable
-              appointments={displayedAppointments}
-              onStatusChange={handleStatusChange}
-              onEditAmount={handleEditAmount}
-              loadingAppointments={loadingAppointments}
-              errorMessages={errorMessages}
-            />
-          </div>
-        </Card>
+      ) : isClinic && viewType === 'monthly' ? (
+        <AppointmentsMonthlyCalendar
+          appointments={appointments}
+          onAppointmentClick={(appointment) => {
+            // При клике на приём в календаре - открываем модальное окно или выполняем действие
+            if (appointment.status === 'pending') {
+              handleStatusChange(appointment.id, 'confirmed');
+            } else if (appointment.status === 'confirmed') {
+              handleStatusChange(appointment.id, 'completed');
+            }
+          }}
+          onDateClick={(date) => {
+            // При клике на ячейку календаря - открываем модальное окно создания приёма с предзаполненной датой
+            const dateStr = format(date, 'yyyy-MM-dd');
+            setCreateModalDefaultDate(dateStr);
+            setIsCreateModalOpen(true);
+          }}
+          onViewChange={handleViewTypeChange}
+          currentView={viewType}
+        />
+      ) : isClinic && viewType === 'weekly' ? (
+        <AppointmentsWeeklyView
+          appointments={appointments}
+          onAppointmentClick={(appointment) => {
+            // При клике на приём в недельном виде
+            if (appointment.status === 'pending') {
+              handleStatusChange(appointment.id, 'confirmed');
+            } else if (appointment.status === 'confirmed') {
+              handleStatusChange(appointment.id, 'completed');
+            }
+          }}
+          onTimeSlotClick={() => {
+            // При клике на временной слот - открываем модальное окно создания приёма
+            setIsCreateModalOpen(true);
+          }}
+          onViewChange={handleViewTypeChange}
+          currentView={viewType}
+        />
       ) : (
-        <div className={`space-y-4 transition-opacity duration-500 ease-out will-change-opacity ${isFetching ? 'opacity-95' : 'opacity-100'}`}>
-          <div className={isTransitioning ? 'opacity-0 transition-opacity duration-300 ease-out' : 'opacity-100 transition-opacity duration-500 ease-out'}>
-            {displayedAppointments.map((appointment) => (
-              <Card 
-                key={appointment.id} 
-                padding="md"
-                className="appointment-card transition-all duration-500 ease-out will-change-opacity animate-fade-in"
-              >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 space-y-3">
-                  {/* Patient Info Header */}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <div className="w-12 h-12 bg-main-10 rounded-sm flex items-center justify-center flex-shrink-0">
-                      <span className="text-base text-main-100 font-medium">
-                        {appointment.patient?.name?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base font-semibold text-text-100 truncate">
-                        {appointment.patient?.name}
-                      </h3>
-                      <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        {appointment.patient?.email && (
-                          <p className="text-xs text-text-10">📧 {appointment.patient.email}</p>
-                        )}
-                        {appointment.patient?.phone && (
-                          <p className="text-xs text-text-10">📱 {appointment.patient.phone}</p>
-                        )}
-                      </div>
-                    </div>
-                    {getStatusBadge(appointment.status)}
-                  </div>
-
-                  {/* Doctor and Appointment Details */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div className="bg-bg-primary p-3 rounded-sm">
-                      <p className="font-normal text-text-10 mb-2">👨‍⚕️ Врач:</p>
-                      <p className="font-semibold text-text-50 text-sm">{appointment.doctor?.name}</p>
-                      {appointment.doctor?.specialization && (
-                        <p className="text-text-10 mt-1">{appointment.doctor.specialization}</p>
-                      )}
-                    </div>
-                    <div className="bg-bg-primary p-3 rounded-sm">
-                      <p className="font-normal text-text-10 mb-2">📅 Дата и время приёма:</p>
-                      <p className="font-semibold text-text-50 text-sm">
-                        {formatAppointmentDateTime(appointment.appointmentDate, { dateFormat: 'long' })}
-                      </p>
-                      {/* Показываем registeredAt если есть, иначе используем createdAt для старых записей */}
-                      {/* Отображаем время регистрации в том же формате, в котором клиент зарегистрировался */}
-                      {(appointment.registeredAt || appointment.createdAt) && (
-                        <p className="text-text-10 mt-1 text-xs">
-                          📝 Зарегистрировано: {(() => {
-                            // Сначала проверяем, есть ли исходная строка времени в notes
-                            let registeredAtOriginalStr = null;
-                            if (appointment.notes) {
-                              const match = appointment.notes.match(/REGISTERED_AT_ORIGINAL:\s*(.+)/);
-                              if (match) {
-                                registeredAtOriginalStr = match[1].trim();
-                              }
-                            }
-                            
-                            // Если есть исходная строка, используем её для отображения локального времени клиента
-                            if (registeredAtOriginalStr) {
-                              const match = registeredAtOriginalStr.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
-                              if (match) {
-                                const [datePart, timePart] = [match[1], match[2]];
-                                const [year, month, day] = datePart.split('-');
-                                const [hours, minutes] = timePart.split(':');
-                                return `${day}.${month}.${year} ${hours}:${minutes}`;
-                              }
-                            }
-                            
-                            // Если исходной строки нет, используем стандартное форматирование
-                            const registeredAtStr = appointment.registeredAt || appointment.createdAt;
-                            if (!registeredAtStr) return '';
-                            
-                            const date = new Date(registeredAtStr);
-                            return date.toLocaleString('ru-RU', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            });
-                          })()}
-                        </p>
-                      )}
-                      <p className="text-text-10 mt-1">⏱️ Длительность: {appointment.duration} мин</p>
-                      {appointment.amount && (
-                        <p className="text-text-10 mt-1">
-                          💰 Сумма: <span className="font-semibold text-text-100">{appointment.amount.toLocaleString('ru-RU')} ֏</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {appointment.reason && (
-                    <div className="text-xs">
-                      <p className="font-normal text-text-10 mb-1">Причина визита:</p>
-                      <p className="text-text-50">{appointment.reason}</p>
-                    </div>
-                  )}
-
-                  {appointment.notes && (
-                    <div className="text-xs">
-                      <p className="font-normal text-text-10 mb-1">Заметки:</p>
-                      <p className="text-text-50">{appointment.notes}</p>
-                    </div>
-                  )}
-
-                  {/* Inline Error Message */}
-                  {errorMessages[appointment.id] && (
-                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-sm">
-                      <p className="text-xs text-red-600 flex items-center gap-1">
-                        <span>⚠️</span>
-                        {errorMessages[appointment.id]}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions - Три кнопки с умной логикой отображения */}
-                {/* Доступны для ADMIN (администратор клиники) и DOCTOR (врач) */}
-                {/* Права доступа проверяются на backend через authorize middleware */}
-                <div className="flex flex-col gap-2 ml-4 min-w-[120px]">
-                  {/* Кнопка "Подтвердить" - только для pending */}
-                  {/* Доступна: ADMIN, DOCTOR */}
-                  {appointment.status === 'pending' && (
-                    <Button
-                      size="sm"
-                      variant="success"
-                      onClick={() => handleStatusChange(appointment.id, 'confirmed')}
-                      isLoading={loadingAppointments[appointment.id] === 'confirmed'}
-                      disabled={!!loadingAppointments[appointment.id]}
-                    >
-                      Подтвердить
-                    </Button>
-                  )}
-
-                  {/* Кнопка "Завершить" - только для confirmed */}
-                  {/* Доступна: ADMIN, DOCTOR */}
-                  {appointment.status === 'confirmed' && (
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => handleStatusChange(appointment.id, 'completed')}
-                      isLoading={loadingAppointments[appointment.id] === 'completed'}
-                      disabled={!!loadingAppointments[appointment.id]}
-                    >
-                      Завершить
-                    </Button>
-                  )}
-
-                  {/* Кнопка "Отменить" - для pending и confirmed */}
-                  {/* Доступна: ADMIN, DOCTOR */}
-                  {['pending', 'confirmed'].includes(appointment.status) && (
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => handleStatusChange(appointment.id, 'cancelled')}
-                      isLoading={loadingAppointments[appointment.id] === 'cancelled'}
-                      disabled={!!loadingAppointments[appointment.id]}
-                    >
-                      Отменить
-                    </Button>
-                  )}
-
-                  {/* Кнопка редактирования суммы - только для завершенных приёмов */}
-                  {appointment.status === 'completed' && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleEditAmount(appointment)}
-                      isLoading={loadingAppointments[appointment.id] === 'updating'}
-                      disabled={!!loadingAppointments[appointment.id]}
-                    >
-                      {appointment.amount ? 'Изменить сумму' : 'Добавить сумму'}
-                    </Button>
-                  )}
-
-                  {/* Информация для отмененных приёмов */}
-                  {appointment.status === 'cancelled' && (
-                    <div className="text-xs text-text-10 text-center py-2">
-                      ❌ Приём отменён
-                    </div>
-                  )}
+        // List view (table или cards) - для всех ролей
+        <div className="space-y-4">
+          {/* Переключение видов для CLINIC в списке */}
+          {isClinic && (
+            <Card padding="sm">
+              <div className="flex items-center justify-center">
+                <div className="flex border border-stroke rounded-sm overflow-hidden">
+                  <button
+                    onClick={() => handleViewTypeChange('list')}
+                    className={`px-5 py-2.5 text-base font-medium transition-smooth ${
+                      viewType === 'list'
+                        ? 'bg-main-100 text-white'
+                        : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                    }`}
+                    title="Таблица"
+                  >
+                    📊 Таблица
+                  </button>
+                  <button
+                    onClick={() => handleViewTypeChange('monthly')}
+                    className={`px-5 py-2.5 text-base font-medium transition-smooth ${
+                      viewType === 'monthly'
+                        ? 'bg-main-100 text-white'
+                        : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                    }`}
+                    title="Месячный календарь"
+                  >
+                    📅 Месяц
+                  </button>
+                  <button
+                    onClick={() => handleViewTypeChange('weekly')}
+                    className={`px-5 py-2.5 text-base font-medium transition-smooth ${
+                      viewType === 'weekly'
+                        ? 'bg-main-100 text-white'
+                        : 'bg-bg-white text-text-50 hover:bg-bg-primary'
+                    }`}
+                    title="Недельный вид"
+                  >
+                    📆 Неделя
+                  </button>
                 </div>
               </div>
             </Card>
-            ))}
-          </div>
+          )}
+          <AppointmentsListView
+            appointments={displayedAppointments}
+            viewMode={viewMode}
+            onStatusChange={handleStatusChange}
+            onEditAmount={handleEditAmount}
+            loadingAppointments={loadingAppointments}
+            errorMessages={errorMessages}
+            isFetching={isFetching}
+            isTransitioning={isTransitioning}
+          />
         </div>
       )}
 
       {/* Модальное окно создания приёма */}
       <CreateAppointmentModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setCreateModalDefaultDate(undefined);
+        }}
         onSuccess={() => {
           // Обновление произойдет автоматически через React Query
           console.log('✅ [APPOINTMENTS] Приём успешно создан');
+          setCreateModalDefaultDate(undefined);
         }}
+        defaultDate={createModalDefaultDate}
       />
 
       {/* Модальное окно завершения приёма */}
@@ -831,3 +767,4 @@ export const AppointmentsPage: React.FC = () => {
     </NewDashboardLayout>
   );
 };
+
