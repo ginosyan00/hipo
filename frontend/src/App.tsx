@@ -25,6 +25,7 @@ import { DoctorAnalyticsPage } from './pages/dashboard/DoctorAnalyticsPage';
 import { PartnerDashboard } from './pages/dashboard/PartnerDashboard';
 import { AdminDashboard } from './pages/dashboard/AdminDashboard';
 import { DoctorSettingsPage } from './pages/dashboard/DoctorSettingsPage';
+import { NotificationsPage } from './pages/dashboard/NotificationsPage';
 import { HomePage } from './pages/public/Home';
 import { ClinicsPage } from './pages/public/Clinics';
 import { ClinicPage } from './pages/public/ClinicPage';
@@ -254,6 +255,14 @@ function App() {
           element={
             <RoleProtectedRoute allowedRoles={['CLINIC']}>
               <ClinicChatPage />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/notifications"
+          element={
+            <RoleProtectedRoute allowedRoles={[UserRole.PATIENT, UserRole.DOCTOR, UserRole.ADMIN, 'CLINIC', UserRole.PARTNER]}>
+              <NotificationsPage />
             </RoleProtectedRoute>
           }
         />

@@ -2,22 +2,14 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/common';
 import { usePatientsForTestimonials } from '../../hooks/usePublic';
-
-// Import icons
 import searchIcon from '../../assets/icons/search.svg';
 import calendarIcon from '../../assets/icons/calendar.svg';
 import hippocratesLogo from '../../assets/icons/hippocrates-logo.png';
 import doctorIcon from '../../assets/icons/doctor.svg';
 
-/**
- * Home Page - Enhanced Modern Design
- * Главная страница с современными визуальными элементами
- */
 export const HomePage: React.FC = () => {
-  // Получаем реальных пациентов для отзывов
   const { data: patients = [], isLoading: patientsLoading } = usePatientsForTestimonials(3);
 
-  // Тексты отзывов (оставляем как есть)
   const testimonials = [
     {
       text: "Очень удобная платформа! Записался к стоматологу за минуту, без звонков и ожидания.",
@@ -36,7 +28,6 @@ export const HomePage: React.FC = () => {
     },
   ];
 
-  // Функция для получения первой буквы имени
   const getInitial = (name: string) => {
     return name ? name.charAt(0).toUpperCase() : 'П';
   };

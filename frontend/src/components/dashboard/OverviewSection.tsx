@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Button, Spinner } from '../common';
 import { useAppointments } from '../../hooks/useAppointments';
 import { usePatients } from '../../hooks/usePatients';
-import { Appointment, Patient } from '../../types/api.types';
+import { Patient } from '../../types/api.types';
 
 // Import icons
 import calendarIcon from '../../assets/icons/calendar.svg';
@@ -18,7 +18,6 @@ import notificationIcon from '../../assets/icons/notification.svg';
 export const OverviewSection: React.FC = () => {
   const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState({
-    appointments: true,
     patients: false,
   });
 
@@ -38,8 +37,6 @@ export const OverviewSection: React.FC = () => {
 
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
 
@@ -70,7 +67,6 @@ export const OverviewSection: React.FC = () => {
       upcomingAppointments: upcomingAppointments.length,
       newPatients: newPatients.length,
       pendingAppointments: pendingAppointments.length,
-      upcomingList: upcomingAppointments.slice(0, 5),
       recentPatients: patients.slice(0, 5),
     };
   }, [appointmentsData, patientsData]);
@@ -80,16 +76,6 @@ export const OverviewSection: React.FC = () => {
       ...prev,
       [section]: !prev[section],
     }));
-  };
-
-  const formatDate = (date: Date | string) => {
-    const d = new Date(date);
-    return d.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   };
 
   const formatPatientDate = (date: Date | string) => {
@@ -175,86 +161,6 @@ export const OverviewSection: React.FC = () => {
 
       </div>
 
-      {/* Предстоящие записи - Expandable блок */}
-      <Card padding="lg">
-        <div
-          className="flex items-center justify-between cursor-pointer"
-          onClick={() => toggleSection('appointments')}
-        >
-          <div>
-            <h3 className="text-lg font-semibold text-text-50">
-              Предстоящие записи
-            </h3>
-            <p className="text-xs text-text-10 mt-1">
-              Ближайшие записи на приём
-            </p>
-          </div>
-          <button className="text-text-10 hover:text-text-50 transition-colors">
-            {expandedSections.appointments ? '▼' : '▶'}
-          </button>
-        </div>
-
-        {expandedSections.appointments && (
-          <div className="mt-4 space-y-3">
-            {isLoadingAppointments ? (
-              <div className="text-center py-8">
-                <Spinner />
-                <p className="text-sm text-text-10 mt-2">Загрузка записей...</p>
-              </div>
-            ) : stats.upcomingList.length === 0 ? (
-              <div className="text-center py-8 text-text-10">
-                <p className="text-sm">Нет предстоящих записей</p>
-              </div>
-            ) : (
-              <>
-                {stats.upcomingList.map((appointment: Appointment) => (
-                  <div
-                    key={appointment.id}
-                    className="flex items-center justify-between p-3 border border-stroke rounded-lg hover:border-main-100 hover:bg-main-10 transition-all"
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-10 h-10 bg-main-10 rounded-lg flex items-center justify-center">
-                        <span className="text-sm font-medium text-main-100">
-                          {appointment.patient?.name?.charAt(0).toUpperCase() || '?'}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-50 truncate">
-                          {appointment.patient?.name || 'Неизвестный пациент'}
-                        </p>
-                        <p className="text-xs text-text-10">
-                          {appointment.doctor?.name || 'Врач не указан'} •{' '}
-                          {formatDate(appointment.appointmentDate)}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        appointment.status === 'confirmed'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}
-                    >
-                      {appointment.status === 'confirmed' ? 'Подтверждено' : 'Ожидает'}
-                    </span>
-                  </div>
-                ))}
-                <div className="pt-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => navigate('/dashboard/appointments')}
-                    className="w-full"
-                  >
-                    Показать все записи →
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </Card>
-
       {/* Недавние пациенты - Expandable блок */}
       <Card padding="lg">
         <div
@@ -324,52 +230,6 @@ export const OverviewSection: React.FC = () => {
           </div>
         )}
       </Card>
-
-      {/* FAQ - Один вопрос с аккордеоном */}
-      <Card padding="lg" className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-        <div>
-          <h3 className="text-lg font-semibold text-text-50 mb-4">
-            Часто задаваемые вопросы
-          </h3>
-          
-          <FAQAccordion
-            question="Как добавить нового врача в клинику?"
-            answer="Для добавления нового врача перейдите в раздел 'Сотрудники' (Staff) в меню Dashboard. Нажмите кнопку 'Добавить сотрудника' и заполните форму с данными врача: имя, email, специализация, номер лицензии и опыт работы. После сохранения врач получит доступ к системе."
-          />
-        </div>
-      </Card>
-    </div>
-  );
-};
-
-/**
- * FAQ Accordion Component
- * Компонент для отображения вопроса и ответа
- */
-interface FAQAccordionProps {
-  question: string;
-  answer: string;
-}
-
-const FAQAccordion: React.FC<FAQAccordionProps> = ({ question, answer }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div className="border border-blue-200 rounded-lg overflow-hidden">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 text-left hover:bg-blue-100 transition-colors"
-      >
-        <span className="font-medium text-text-50 pr-4">{question}</span>
-        <span className="text-blue-600 text-xl flex-shrink-0">
-          {isOpen ? '−' : '+'}
-        </span>
-      </button>
-      {isOpen && (
-        <div className="p-4 bg-white border-t border-blue-200">
-          <p className="text-sm text-text-10 leading-relaxed">{answer}</p>
-        </div>
-      )}
     </div>
   );
 };
