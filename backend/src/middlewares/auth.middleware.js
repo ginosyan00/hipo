@@ -23,8 +23,10 @@ export function authenticate(req, res, next) {
     console.log('✅ [AUTH MIDDLEWARE] Токен валиден:', { userId: decoded.userId, role: decoded.role, status: decoded.status });
 
     // Добавляем данные пользователя в request (теперь с status)
+    // Может быть userId (для User) или patientId (для Patient)
     req.user = {
-      userId: decoded.userId,
+      userId: decoded.userId || null,
+      patientId: decoded.patientId || null,
       clinicId: decoded.clinicId,
       role: decoded.role,
       status: decoded.status,

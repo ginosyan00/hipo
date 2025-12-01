@@ -16,41 +16,40 @@ export async function getConversations(req, res, next) {
     const clinicId = req.user.clinicId;
     const userRole = req.user.role;
     const userId = req.user.userId;
+    const patientId = req.user.patientId; // Теперь patientId приходит напрямую из токена
 
-    // Для пациентов нужно получить patientId
-    let patientId = null;
-    if (userRole === 'PATIENT') {
-      // Получаем данные пользователя и ищем пациента
-      const { prisma } = await import('../config/database.js');
-      const currentUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true, phone: true },
-      });
-
-      if (currentUser) {
-        // Для PATIENT ищем пациента по email/phone без фильтра по clinicId
-        // так как clinicId может быть null при регистрации
-        const where = {
-          OR: [
-            { email: currentUser.email },
-            { phone: currentUser.phone || '' },
-          ],
-        };
-        
-        // Если clinicId есть, добавляем его для более точного поиска
-        if (clinicId) {
-          where.clinicId = clinicId;
-        }
-        
-        const patient = await prisma.patient.findFirst({
-          where,
-          orderBy: { createdAt: 'desc' }, // Берем самую новую запись
+    // Если это Patient и patientId есть - используем его напрямую
+    // Если patientId нет (старый токен или ошибка) - пытаемся найти
+    let finalPatientId = patientId;
+    if (userRole === 'PATIENT' && !finalPatientId) {
+      console.warn('⚠️ [CHAT CONTROLLER] Patient role but no patientId in token, trying to find...');
+      // Fallback: пытаемся найти по userId (если это старый токен)
+      if (userId) {
+        const { prisma } = await import('../config/database.js');
+        const currentUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true, phone: true },
         });
-        
-        patientId = patient?.id;
-        
-        // Если пациент не найден, это нормально для нового пользователя
-        // Вернем пустой список бесед
+
+        if (currentUser) {
+          const where = {
+            OR: [
+              { email: currentUser.email },
+              { phone: currentUser.phone || '' },
+            ],
+          };
+          
+          if (clinicId) {
+            where.clinicId = clinicId;
+          }
+          
+          const patient = await prisma.patient.findFirst({
+            where,
+            orderBy: { createdAt: 'desc' },
+          });
+          
+          finalPatientId = patient?.id;
+        }
       }
     }
 
@@ -58,7 +57,7 @@ export async function getConversations(req, res, next) {
       clinicId,
       userRole,
       userId,
-      patientId,
+      finalPatientId,
       {
         page: page ? parseInt(page) : 1,
         limit: limit ? parseInt(limit) : 50,
@@ -81,34 +80,37 @@ export async function getConversation(req, res, next) {
     const clinicId = req.user.clinicId;
     const userRole = req.user.role;
     const userId = req.user.userId;
+    const patientId = req.user.patientId; // Теперь patientId приходит напрямую из токена
 
-    let patientId = null;
-    if (userRole === 'PATIENT') {
-      const { prisma } = await import('../config/database.js');
-      const currentUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true, phone: true },
-      });
-
-      if (currentUser) {
-        // Для PATIENT ищем пациента по email/phone без обязательного фильтра по clinicId
-        const where = {
-          OR: [
-            { email: currentUser.email },
-            { phone: currentUser.phone || '' },
-          ],
-        };
-        
-        // Если clinicId есть, добавляем его для более точного поиска
-        if (clinicId) {
-          where.clinicId = clinicId;
-        }
-        
-        const patient = await prisma.patient.findFirst({
-          where,
-          orderBy: { createdAt: 'desc' },
+    // Если это Patient и patientId есть - используем его напрямую
+    let finalPatientId = patientId;
+    if (userRole === 'PATIENT' && !finalPatientId) {
+      // Fallback для старых токенов
+      if (userId) {
+        const { prisma } = await import('../config/database.js');
+        const currentUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { email: true, phone: true },
         });
-        patientId = patient?.id;
+
+        if (currentUser) {
+          const where = {
+            OR: [
+              { email: currentUser.email },
+              { phone: currentUser.phone || '' },
+            ],
+          };
+          
+          if (clinicId) {
+            where.clinicId = clinicId;
+          }
+          
+          const patient = await prisma.patient.findFirst({
+            where,
+            orderBy: { createdAt: 'desc' },
+          });
+          finalPatientId = patient?.id;
+        }
       }
     }
 
@@ -117,7 +119,7 @@ export async function getConversation(req, res, next) {
       clinicId,
       userRole,
       userId,
-      patientId
+      finalPatientId
     );
 
     successResponse(res, conversation, 200);

@@ -55,6 +55,13 @@ router.post('/appointments', validate(createPublicAppointmentSchema), publicCont
  */
 router.get('/testimonials/patients', publicController.getPatientsForTestimonials);
 
+/**
+ * GET /api/v1/public/clinics/:slug/patients
+ * Получить список пациентов клиники (публичный endpoint)
+ * Query params: ?page=1&limit=50
+ */
+router.get('/clinics/:slug/patients', publicController.getClinicPatients);
+
 export default router;
 
 

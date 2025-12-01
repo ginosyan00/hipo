@@ -5,3 +5,5 @@ ALTER TABLE "patients" ADD COLUMN "status" TEXT NOT NULL DEFAULT 'registered';
 CREATE INDEX "patients_status_idx" ON "patients"("status");
 
 
+
+

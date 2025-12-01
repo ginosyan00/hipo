@@ -62,4 +62,13 @@ export function usePatientsForTestimonials(limit: number = 3) {
   });
 }
 
+export function useClinicPatients(slug: string, params?: { page?: number; limit?: number }) {
+  return useQuery({
+    queryKey: ['public-clinic-patients', slug, params],
+    queryFn: () => publicService.getClinicPatients(slug, params),
+    enabled: !!slug,
+    staleTime: 60000, // 1 минута
+  });
+}
+
 

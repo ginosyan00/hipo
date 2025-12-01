@@ -89,6 +89,26 @@ export const registerUserSchema = Joi.object({
       'any.only': 'Role must be one of: PATIENT, CLINIC, PARTNER',
       'any.required': 'Role is required',
     }),
+  // Patient-specific поля (required только для PATIENT)
+  clinicId: Joi.string().when('role', {
+    is: 'PATIENT',
+    then: Joi.optional(), // clinicId или clinicSlug должен быть указан
+    otherwise: Joi.optional(),
+  }),
+  clinicSlug: Joi.string().when('role', {
+    is: 'PATIENT',
+    then: Joi.optional(), // clinicId или clinicSlug должен быть указан
+    otherwise: Joi.optional(),
+  }).custom((value, helpers) => {
+    // Если role=PATIENT, то clinicId или clinicSlug должен быть указан
+    const { role, clinicId } = helpers.state.ancestors[0];
+    if (role === 'PATIENT' && !value && !clinicId) {
+      return helpers.error('any.required');
+    }
+    return value;
+  }).messages({
+    'any.required': 'Either clinicId or clinicSlug is required for patient registration',
+  }),
   name: Joi.string().min(2).max(100).required().messages({
     'string.min': 'Name must be at least 2 characters',
     'string.max': 'Name must be at most 100 characters',

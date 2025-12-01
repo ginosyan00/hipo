@@ -38,6 +38,7 @@ export function tenantMiddleware(req, res, next) {
   if (process.env.NODE_ENV === 'development') {
     console.log('[TENANT]', {
       userId: req.user.userId,
+      patientId: req.user.patientId,
       clinicId: req.user.clinicId,
       role: req.user.role,
       path: req.path,

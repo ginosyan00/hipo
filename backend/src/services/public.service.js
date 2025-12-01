@@ -319,15 +319,14 @@ export async function getUniqueCities() {
 
 /**
  * Получить список пациентов для отзывов (публичный endpoint)
- * Возвращает только активных пациентов с их именами
+ * Возвращает только зарегистрированных пациентов (status='registered') с их именами
  * @param {number} limit - Количество пациентов (по умолчанию 3)
  * @returns {Promise<array>} Список пациентов с именами
  */
 export async function getPatientsForTestimonials(limit = 3) {
-  const patients = await prisma.user.findMany({
+  const patients = await prisma.patient.findMany({
     where: {
-      role: 'PATIENT',
-      status: 'ACTIVE',
+      status: 'registered', // Только зарегистрированные пациенты (с account)
     },
     select: {
       id: true,
@@ -340,6 +339,79 @@ export async function getPatientsForTestimonials(limit = 3) {
   });
 
   return patients;
+}
+
+/**
+ * Получить список пациентов клиники по slug (публичный endpoint)
+ * Возвращает всех пациентов, которые зарегистрировались в этой клинике
+ * @param {string} slug - Slug клиники
+ * @param {object} options - Опции (page, limit)
+ * @returns {Promise<object>} { patients, meta }
+ */
+export async function findClinicPatients(slug, options = {}) {
+  const { page = 1, limit = 50 } = options;
+  const skip = (page - 1) * limit;
+
+  // Сначала найдем клинику
+  const clinic = await prisma.clinic.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+
+  if (!clinic) {
+    throw new Error('Clinic not found');
+  }
+
+  // Получаем всех пациентов клиники
+  const allPatients = await prisma.patient.findMany({
+    where: {
+      clinicId: clinic.id,
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      createdAt: true,
+      _count: {
+        select: { appointments: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Убираем дубликаты: группируем по телефону или email
+  const uniquePatientsMap = new Map();
+  
+  for (const patient of allPatients) {
+    const key = patient.phone || patient.email || patient.id;
+    
+    if (!uniquePatientsMap.has(key)) {
+      uniquePatientsMap.set(key, patient);
+    } else {
+      // Если уже есть пациент с таким телефоном/email, берем более новую запись
+      const existing = uniquePatientsMap.get(key);
+      if (new Date(patient.createdAt) > new Date(existing.createdAt)) {
+        uniquePatientsMap.set(key, patient);
+      }
+    }
+  }
+
+  const uniquePatients = Array.from(uniquePatientsMap.values());
+  const total = uniquePatients.length;
+
+  // Применяем пагинацию
+  const paginatedPatients = uniquePatients.slice(skip, skip + limit);
+
+  return {
+    patients: paginatedPatients,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
 }
 
 

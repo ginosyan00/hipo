@@ -176,6 +176,9 @@ export interface Patient {
   createdAt: Date;
   updatedAt: Date;
   appointments?: Appointment[]; // Полная история визитов
+  _count?: {
+    appointments: number;
+  };
 }
 
 export enum Gender {

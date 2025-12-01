@@ -158,4 +158,25 @@ export async function getPatientsForTestimonials(req, res, next) {
   }
 }
 
+/**
+ * GET /api/v1/public/clinics/:slug/patients
+ * Получить список пациентов клиники (публичный endpoint)
+ * Query params: ?page=1&limit=50
+ */
+export async function getClinicPatients(req, res, next) {
+  try {
+    const { slug } = req.params;
+    const { page, limit } = req.query;
+
+    const result = await publicService.findClinicPatients(slug, {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 50,
+    });
+
+    successResponse(res, result, 200);
+  } catch (error) {
+    next(error);
+  }
+}
+
 

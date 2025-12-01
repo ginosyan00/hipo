@@ -23,54 +23,58 @@ async function getPatientIdUserIdAndClinicId(req) {
     }
 
     if (req.user.role === 'PATIENT') {
-      // Для пациентов находим patientId по email пользователя
-      const user = await prisma.user.findUnique({
-        where: { id: req.user.userId },
-        select: { email: true, phone: true },
-      });
-
-      if (!user) {
-        console.warn('🔴 [NOTIFICATION] Пользователь не найден:', req.user.userId);
-        // Если пользователь не найден, но есть clinicId в токене, используем его
-        if (req.user.clinicId) {
-          return { patientId: null, userId: null, clinicId: req.user.clinicId };
-        }
-        return { patientId: null, userId: null, clinicId: null };
+      // Для пациентов patientId теперь приходит напрямую из токена
+      if (req.user.patientId) {
+        return { 
+          patientId: req.user.patientId, 
+          userId: null, 
+          clinicId: req.user.clinicId 
+        };
       }
 
-      // Ищем пациента по email или phone (без фильтра по clinicId, так как его может не быть в токене)
-      const patient = await prisma.patient.findFirst({
-        where: {
-          OR: [
-            { email: user.email },
-            { phone: user.phone },
-          ],
-        },
-        orderBy: { createdAt: 'desc' }, // Берем последнего созданного
-        select: { id: true, clinicId: true },
-      });
-
-      if (patient) {
-        console.log('🔵 [NOTIFICATION] PatientId и ClinicId для PATIENT:', { 
-          patientId: patient.id, 
-          clinicId: patient.clinicId,
-          email: user.email, 
-          phone: user.phone 
+      // Fallback для старых токенов: ищем по userId
+      if (req.user.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: req.user.userId },
+          select: { email: true, phone: true },
         });
-        return { patientId: patient.id, userId: null, clinicId: patient.clinicId };
-      }
 
-      // Если пациент не найден в таблице Patient, но есть clinicId в токене
-      // Это нормальная ситуация - пользователь может быть зарегистрирован как User,
-      // но еще не создал запись в таблице Patient
-      if (req.user.clinicId) {
-        console.log('🔵 [NOTIFICATION] Пациент не найден в таблице Patient, используем clinicId из токена:', req.user.clinicId);
-        return { patientId: null, userId: null, clinicId: req.user.clinicId };
-      }
+        if (user) {
+          // Ищем пациента по email или phone
+          const patient = await prisma.patient.findFirst({
+            where: {
+              OR: [
+                { email: user.email },
+                { phone: user.phone },
+              ],
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, clinicId: true },
+          });
 
-      // Если нет ни patientId, ни clinicId, возвращаем null
-      // Это нормальная ситуация для нового PATIENT пользователя, который еще не записался к клинике
-      return { patientId: null, userId: null, clinicId: null };
+          if (patient) {
+            console.log('🔵 [NOTIFICATION] PatientId и ClinicId для PATIENT:', { 
+              patientId: patient.id, 
+              clinicId: patient.clinicId,
+              email: user.email, 
+              phone: user.phone 
+            });
+            return { patientId: patient.id, userId: null, clinicId: patient.clinicId };
+          }
+
+          // Если пациент не найден в таблице Patient, но есть clinicId в токене
+          // Это нормальная ситуация - пользователь может быть зарегистрирован как User,
+          // но еще не создал запись в таблице Patient
+          if (req.user.clinicId) {
+            console.log('🔵 [NOTIFICATION] Пациент не найден в таблице Patient, используем clinicId из токена:', req.user.clinicId);
+            return { patientId: null, userId: null, clinicId: req.user.clinicId };
+          }
+
+          // Если нет ни patientId, ни clinicId, возвращаем null
+          // Это нормальная ситуация для нового PATIENT пользователя, который еще не записался к клинике
+          return { patientId: null, userId: null, clinicId: null };
+        }
+      }
     }
 
     if (req.user.role === 'DOCTOR') {

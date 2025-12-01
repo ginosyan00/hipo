@@ -1,5 +1,5 @@
 import api from './api';
-import { ApiResponse, Clinic, User, PaginatedResponse } from '../types/api.types';
+import { ApiResponse, Clinic, User, PaginatedResponse, Patient } from '../types/api.types';
 
 /**
  * Public Service
@@ -88,6 +88,22 @@ export const publicService = {
       { params: { limit } }
     );
     return data.data;
+  },
+
+  /**
+   * Получить список пациентов клиники
+   * Backend возвращает { patients: [...], meta: {...} }, преобразуем в { data: [...], meta: {...} }
+   */
+  async getClinicPatients(slug: string, params?: { page?: number; limit?: number }): Promise<PaginatedResponse<Patient>> {
+    const { data } = await api.get<ApiResponse<{ patients: Patient[]; meta: any }>>(
+      `/public/clinics/${slug}/patients`,
+      { params }
+    );
+    // Преобразуем { patients: [...], meta: {...} } в { data: [...], meta: {...} }
+    return {
+      data: data.data.patients || [],
+      meta: data.data.meta || { total: 0, page: 1, limit: 50, totalPages: 0 },
+    };
   },
 };
 

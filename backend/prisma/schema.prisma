@@ -42,12 +42,13 @@ model Clinic {
 }
 
 // ============================================
-// USER (Multi-Role: Patient, Doctor, Partner, Admin)
+// USER (Multi-Role: Doctor, Partner, Admin, Clinic)
 // ============================================
 
 // Note: SQLite doesn't support enums, so we use String with validation in code
-// Valid roles: "PATIENT" | "DOCTOR" | "PARTNER" | "ADMIN"
+// Valid roles: "DOCTOR" | "PARTNER" | "ADMIN" | "CLINIC"
 // Valid statuses: "PENDING" | "ACTIVE" | "SUSPENDED" | "REJECTED"
+// NOTE: PATIENT role removed - patients are now in Patient table with authentication
 
 model User {
   id             String      @id @default(uuid())
@@ -55,7 +56,7 @@ model User {
   name           String
   email          String      @unique
   passwordHash   String
-  role           String      @default("PATIENT")    // PATIENT | DOCTOR | PARTNER | ADMIN
+  role           String      @default("DOCTOR")    // DOCTOR | PARTNER | ADMIN | CLINIC (PATIENT removed)
   status         String      @default("ACTIVE")     // PENDING | ACTIVE | SUSPENDED | REJECTED
   
   // Common fields
@@ -96,19 +97,24 @@ model User {
 // PATIENT (Пациент)
 // ============================================
 
+// Patient can be:
+// - "registered" - has account (email + passwordHash) - can login
+// - "guest" - no account (no email/passwordHash) - created by doctor, cannot login
+
 model Patient {
   id           String    @id @default(uuid())
-  clinicId     String
-  name         String
-  phone        String
-  email        String?
-  avatar       String?   // Avatar/logo пациента
-  dateOfBirth  DateTime?
-  gender       String?  // male | female | other
-  notes        String?
-  status       String   @default("registered")  // registered | guest
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  clinicId    String
+  name        String
+  phone       String
+  email       String?   @unique  // Optional - only for registered patients
+  passwordHash String?   // Optional - only for registered patients (self-registered)
+  avatar      String?   // Avatar/logo пациента
+  dateOfBirth DateTime?
+  gender      String?   // male | female | other
+  notes       String?
+  status      String    @default("guest")  // "registered" (has account) | "guest" (no account)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Relations
   clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -118,6 +124,7 @@ model Patient {
 
   @@index([clinicId])
   @@index([phone])
+  @@index([email])
   @@index([status])
   @@map("patients")
 }

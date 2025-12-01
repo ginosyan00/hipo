@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Button, Card, Input, Modal, Spinner, BackButton, Calendar } from '../../components/common';
 import { CertificateGallery } from '../../components/public/CertificateGallery';
 import { ClinicSearchFilterModal, ClinicFilters } from '../../components/public/ClinicSearchFilterModal';
-import { useClinic, useClinicDoctors, useCreatePublicAppointment } from '../../hooks/usePublic';
+import { useClinic, useClinicDoctors, useCreatePublicAppointment, useClinicPatients } from '../../hooks/usePublic';
 import { useAuthStore } from '../../store/useAuthStore';
 
 // Import icons
@@ -23,6 +23,7 @@ export const ClinicPage: React.FC = () => {
 
   const { data: clinic, isLoading: clinicLoading } = useClinic(slug!);
   const { data: doctors, isLoading: doctorsLoading } = useClinicDoctors(slug!);
+  const { data: patientsData, isLoading: patientsLoading } = useClinicPatients(slug!, { limit: 100 });
   const createMutation = useCreatePublicAppointment();
   
   // Auth state
@@ -462,6 +463,71 @@ export const ClinicPage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Patients Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-medium text-text-100 mb-6">Պացիենտներ</h2>
+
+          {patientsLoading ? (
+            <Card>
+              <div className="text-center py-12">
+                <Spinner size="md" />
+              </div>
+            </Card>
+          ) : !patientsData || patientsData.data.length === 0 ? (
+            <Card>
+              <div className="text-center py-12">
+                <p className="text-text-10">Գրանցված պացիենտներ դեռ չկան</p>
+              </div>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {patientsData.data.map((patient) => (
+                <Card key={patient.id} padding="md">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-main-10 flex items-center justify-center">
+                        <span className="text-main-100 font-medium text-lg">
+                          {patient.name?.charAt(0)?.toUpperCase() || '?'}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-base font-medium text-text-100">{patient.name}</h3>
+                        {patient.phone && (
+                          <p className="text-sm text-text-50">{patient.phone}</p>
+                        )}
+                      </div>
+                    </div>
+                    {patient._count && patient._count.appointments > 0 && (
+                      <div className="pt-2 border-t border-stroke">
+                        <p className="text-xs text-text-10">
+                          Վիզիտներ: <span className="text-text-50 font-medium">{patient._count.appointments}</span>
+                        </p>
+                      </div>
+                    )}
+                    {patient.createdAt && (
+                      <p className="text-xs text-text-10">
+                        Գրանցվել է: {new Date(patient.createdAt).toLocaleDateString('hy-AM', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {patientsData && patientsData.meta.total > patientsData.data.length && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-text-50">
+                Ցուցադրվում է {patientsData.data.length} {patientsData.meta.total}-ից
+              </p>
+            </div>
+          )}
+        </div>
       </main>
 
       {/* Appointment Modal - Figma Style */}
@@ -472,7 +538,7 @@ export const ClinicPage: React.FC = () => {
           setSuccessMessage('');
         }}
         title="Онлайн-запись на приём"
-        size="lg"
+        size="xl"
       >
         {successMessage ? (
           <div className="text-center py-8">

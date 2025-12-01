@@ -32,7 +32,12 @@ export async function registerUser(req, res, next) {
 
     const result = await authService.registerUser(req.body);
 
-    console.log('✅ [AUTH CONTROLLER] Регистрация успешна:', { userId: result.user.id, role: result.user.role });
+    // Результат может содержать user или patient
+    if (result.patient) {
+      console.log('✅ [AUTH CONTROLLER] Регистрация успешна (Patient):', { patientId: result.patient.id });
+    } else if (result.user) {
+      console.log('✅ [AUTH CONTROLLER] Регистрация успешна (User):', { userId: result.user.id, role: result.user.role });
+    }
 
     successResponse(res, result, 201);
   } catch (error) {
@@ -59,13 +64,16 @@ export async function login(req, res, next) {
 
 /**
  * GET /api/v1/auth/me
- * Получить данные текущего пользователя
+ * Получить данные текущего пользователя (User или Patient)
  */
 export async function getMe(req, res, next) {
   try {
-    const user = await authService.getCurrentUser(req.user.userId);
+    const currentUser = await authService.getCurrentUser(
+      req.user.userId,
+      req.user.patientId
+    );
 
-    successResponse(res, user, 200);
+    successResponse(res, currentUser, 200);
   } catch (error) {
     next(error);
   }
@@ -73,19 +81,28 @@ export async function getMe(req, res, next) {
 
 /**
  * PUT /api/v1/auth/password
- * Изменить пароль текущего пользователя (для всех ролей)
+ * Изменить пароль текущего пользователя (для всех ролей, включая Patient)
  */
 export async function updatePassword(req, res, next) {
   try {
-    const { userId } = req.user;
+    const { userId, patientId } = req.user;
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
       return errorResponse(res, 'VALIDATION_ERROR', 'Current password and new password are required', 400);
     }
 
-    const result = await authService.updatePassword(userId, currentPassword, newPassword);
-    successResponse(res, result);
+    // Если это Patient - обновляем пароль в Patient table
+    if (patientId) {
+      const result = await authService.updatePatientPassword(patientId, currentPassword, newPassword);
+      successResponse(res, result);
+    } else if (userId) {
+      // Если это User - обновляем пароль в User table
+      const result = await authService.updatePassword(userId, currentPassword, newPassword);
+      successResponse(res, result);
+    } else {
+      return errorResponse(res, 'AUTH_ERROR', 'User or Patient ID not found', 401);
+    }
   } catch (error) {
     next(error);
   }

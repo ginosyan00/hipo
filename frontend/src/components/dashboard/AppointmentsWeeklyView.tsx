@@ -216,8 +216,8 @@ export const AppointmentsWeeklyView: React.FC<AppointmentsWeeklyViewProps> = ({
       </Card>
 
       {/* Kanban Board - Колонки по дням недели */}
-      <div className="overflow-x-auto">
-        <div className="flex gap-4 min-w-max pb-4">
+      <div className="w-full overflow-x-hidden">
+        <div className="grid grid-cols-7 gap-3 w-full">
           {weekDays.map((day, dayIndex) => {
             const isToday = isSameDay(day, new Date());
             const dayAppointments = getAppointmentsForDay(day);
@@ -229,27 +229,27 @@ export const AppointmentsWeeklyView: React.FC<AppointmentsWeeklyViewProps> = ({
             return (
               <div
                 key={day.toISOString()}
-                className={`flex-shrink-0 w-80 flex flex-col ${isToday ? 'ring-2 ring-main-100 ring-offset-2' : ''}`}
+                className={`flex flex-col ${isToday ? 'ring-2 ring-main-100 ring-offset-1' : ''}`}
               >
                 {/* Заголовок колонки */}
-                <div className={`${getDayHeaderColor(dayIndex, isToday)} p-3 rounded-t-lg`}>
+                <div className={`${getDayHeaderColor(dayIndex, isToday)} p-2 rounded-t-lg`}>
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-semibold">{dayName}</div>
-                      <div className="text-xs opacity-90 mt-0.5">{dayDate}</div>
+                      <div className="text-xs font-semibold truncate">{dayName}</div>
+                      <div className="text-[10px] opacity-90 mt-0.5 truncate">{dayDate}</div>
                     </div>
-                    <div className="text-sm font-bold">({dayCount})</div>
+                    <div className="text-xs font-bold">({dayCount})</div>
                   </div>
                 </div>
 
                 {/* Тело колонки с карточками */}
-                <div className="bg-bg-primary border-x border-b border-stroke rounded-b-lg p-3 min-h-[600px] max-h-[800px] overflow-y-auto">
+                <div className="bg-bg-primary border-x border-b border-stroke rounded-b-lg p-2 min-h-[350px] max-h-[500px] overflow-y-auto">
                   {dayAppointments.length === 0 ? (
-                    <div className="text-center py-8 text-text-10 text-sm">
+                    <div className="text-center py-6 text-text-10 text-xs">
                       Нет приёмов
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {dayAppointments.map((appointment) => {
                         const appointmentDate = parseISO(appointment.appointmentDate.toString());
                         const appointmentTime = formatAppointmentTime(appointmentDate);
@@ -257,17 +257,17 @@ export const AppointmentsWeeklyView: React.FC<AppointmentsWeeklyViewProps> = ({
                         return (
                           <div
                             key={appointment.id}
-                            className="bg-bg-white border border-stroke rounded-lg p-4 hover:shadow-md transition-all duration-200 cursor-pointer"
+                            className="bg-bg-white border border-stroke rounded-lg p-2.5 hover:shadow-md transition-all duration-200 cursor-pointer"
                             onClick={() => onAppointmentClick?.(appointment)}
                           >
                             {/* Верхняя часть карточки */}
-                            <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-start justify-between mb-2">
                               {/* Заголовок карточки */}
                               <div className="flex-1 min-w-0">
-                                <h4 className="text-base font-semibold text-text-100 truncate mb-1">
+                                <h4 className="text-sm font-semibold text-text-100 truncate mb-1">
                                   {appointment.patient?.name || 'Пациент'}
                                 </h4>
-                                <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-xs text-text-50">⏰ {appointmentTime}</span>
                                   {appointment.duration && (
                                     <span className="text-xs text-text-50">• {appointment.duration} мин</span>
@@ -277,23 +277,23 @@ export const AppointmentsWeeklyView: React.FC<AppointmentsWeeklyViewProps> = ({
 
                               {/* Счетчик уведомлений (пока 0) */}
                               <div className="flex-shrink-0 ml-2">
-                                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-medium">
+                                <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] text-gray-600 font-medium">
                                   0
                                 </div>
                               </div>
                             </div>
 
                             {/* Статус бейдж */}
-                            <div className="mb-3">
-                              <span className={`inline-block px-2 py-1 rounded-sm text-xs font-normal border ${getStatusBadgeColor(appointment.status)}`}>
+                            <div className="mb-2">
+                              <span className={`inline-block px-2 py-1 rounded text-xs font-normal border ${getStatusBadgeColor(appointment.status)}`}>
                                 {getStatusLabel(appointment.status)}
                               </span>
                             </div>
 
                             {/* Информация о враче */}
                             {appointment.doctor?.name && (
-                              <div className="mb-3 text-xs text-text-50">
-                                <span className="font-medium">👨‍⚕️ Врач:</span> {appointment.doctor.name}
+                              <div className="mb-2 text-xs text-text-50">
+                                <span className="font-medium">👨‍⚕️ Врач:</span> <span className="truncate">{appointment.doctor.name}</span>
                                 {appointment.doctor.specialization && (
                                   <span className="text-text-10"> ({appointment.doctor.specialization})</span>
                                 )}
@@ -302,14 +302,14 @@ export const AppointmentsWeeklyView: React.FC<AppointmentsWeeklyViewProps> = ({
 
                             {/* Причина визита */}
                             {appointment.reason && (
-                              <div className="mb-3 text-xs">
+                              <div className="mb-2 text-xs">
                                 <span className="text-text-10">Причина:</span>
-                                <span className="text-text-50 ml-1">{appointment.reason}</span>
+                                <span className="text-text-50 ml-1 truncate block">{appointment.reason}</span>
                               </div>
                             )}
 
                             {/* Иконки связи (телефон, email, чат) */}
-                            <div className="flex items-center gap-3 mb-3 pt-2 border-t border-stroke">
+                            <div className="flex items-center gap-2 mb-2 pt-2 border-t border-stroke">
                               {appointment.patient?.phone && (
                                 <button
                                   onClick={(e) => {
