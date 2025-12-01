@@ -568,3 +568,4 @@ async function getMyClinics(): Promise<Clinic[]> { }
 
 **Готов начать?** 🚀
 
+

@@ -1,5 +1,7 @@
 import { prisma } from '../config/database.js';
 import { hashPassword } from '../utils/hash.util.js';
+import * as globalDoctorService from './global-doctor.service.js';
+import * as clinicDoctorService from './clinic-doctor.service.js';
 
 /**
  * User Service
@@ -151,6 +153,33 @@ export async function create(clinicId, data) {
       // НЕ возвращаем passwordHash!
     },
   });
+
+  // Если это DOCTOR - создаем GlobalDoctor + ClinicDoctor (Phase 2: новая архитектура)
+  if (user.role === 'DOCTOR' && user.clinicId) {
+    try {
+      console.log('🔵 [USER SERVICE] Создание GlobalDoctor + ClinicDoctor для врача:', user.id);
+
+      // Создаем или находим GlobalDoctor
+      const globalDoctor = await globalDoctorService.findOrCreateGlobalDoctorForUser(user.id);
+      console.log('✅ [USER SERVICE] GlobalDoctor создан/найден:', globalDoctor.id);
+
+      // Создаем или находим ClinicDoctor
+      const clinicDoctor = await clinicDoctorService.findOrCreateClinicDoctorForUser(
+        user.id,
+        user.clinicId,
+        {
+          specialization: user.specialization || null,
+          licenseNumber: null, // Не передается в create()
+          experience: null, // Не передается в create()
+          isActive: user.status === 'ACTIVE',
+        }
+      );
+      console.log('✅ [USER SERVICE] ClinicDoctor создан/найден:', clinicDoctor.id);
+    } catch (error) {
+      // Логируем ошибку, но не прерываем создание (fallback на старое)
+      console.warn('⚠️ [USER SERVICE] Ошибка при создании GlobalDoctor/ClinicDoctor (не критично):', error.message);
+    }
+  }
 
   return user;
 }
@@ -459,6 +488,32 @@ export async function createDoctorByClinic(clinicId, data) {
   });
 
   console.log('✅ [USER SERVICE] Врач успешно создан:', doctor.id);
+
+  // Создаем GlobalDoctor + ClinicDoctor (Phase 2: новая архитектура)
+  try {
+    console.log('🔵 [USER SERVICE] Создание GlobalDoctor + ClinicDoctor для врача:', doctor.id);
+
+    // Создаем или находим GlobalDoctor
+    const globalDoctor = await globalDoctorService.findOrCreateGlobalDoctorForUser(doctor.id);
+    console.log('✅ [USER SERVICE] GlobalDoctor создан/найден:', globalDoctor.id);
+
+    // Создаем или находим ClinicDoctor
+    const clinicDoctor = await clinicDoctorService.findOrCreateClinicDoctorForUser(
+      doctor.id,
+      clinicId,
+      {
+        specialization: doctor.specialization || null,
+        licenseNumber: doctor.licenseNumber || null,
+        experience: doctor.experience || null,
+        isActive: doctor.status === 'ACTIVE',
+      }
+    );
+    console.log('✅ [USER SERVICE] ClinicDoctor создан/найден:', clinicDoctor.id);
+  } catch (error) {
+    // Логируем ошибку, но не прерываем создание (fallback на старое)
+    console.warn('⚠️ [USER SERVICE] Ошибка при создании GlobalDoctor/ClinicDoctor (не критично):', error.message);
+  }
+
   return doctor;
 }
 

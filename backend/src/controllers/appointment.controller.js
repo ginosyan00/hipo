@@ -86,8 +86,9 @@ export async function getById(req, res, next) {
 export async function create(req, res, next) {
   try {
     const clinicId = req.user.clinicId;
+    const userId = req.user.userId; // Для Phase 2: dual-write
 
-    const appointment = await appointmentService.create(clinicId, req.body);
+    const appointment = await appointmentService.create(clinicId, req.body, userId);
 
     successResponse(res, appointment, 201);
   } catch (error) {

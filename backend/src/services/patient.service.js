@@ -1,4 +1,6 @@
 import { prisma } from '../config/database.js';
+import * as globalPatientService from './global-patient.service.js';
+import * as clinicPatientService from './clinic-patient.service.js';
 
 /**
  * Patient Service
@@ -399,6 +401,47 @@ export async function create(clinicId, data) {
       status: data.status || 'registered', // Статус пациента: registered (по умолчанию) или guest
     },
   });
+
+  // Создаем GlobalPatient + ClinicPatient (Phase 2: новая архитектура)
+  try {
+    console.log('🔵 [PATIENT SERVICE] Создание GlobalPatient + ClinicPatient для пациента:', patient.id);
+
+    // Создаем или находим GlobalPatient
+    const globalPatient = await globalPatientService.findOrCreateGlobalPatient({
+      phone: patient.phone,
+      email: patient.email,
+      dateOfBirth: patient.dateOfBirth,
+      userId: null, // Patient из старой структуры не имеет User
+    });
+    console.log('✅ [PATIENT SERVICE] GlobalPatient создан/найден:', globalPatient.id);
+
+    // Создаем ClinicPatient
+    const clinicPatient = await clinicPatientService.createClinicPatient(
+      clinicId,
+      {
+        name: patient.name,
+        phone: patient.phone,
+        email: patient.email,
+        passwordHash: patient.passwordHash || null,
+        avatar: patient.avatar || null,
+        dateOfBirth: patient.dateOfBirth,
+        gender: patient.gender,
+        notes: patient.notes || null,
+        status: patient.status || 'guest',
+        userId: null, // Patient из старой структуры не имеет User
+      },
+      globalPatient.id
+    );
+    console.log('✅ [PATIENT SERVICE] ClinicPatient создан:', clinicPatient.id);
+  } catch (error) {
+    // Логируем ошибку, но не прерываем создание (fallback на старое)
+    // Если ClinicPatient уже существует - это нормально (идемпотентность)
+    if (error.message.includes('already exists') || error.message.includes('Unique constraint')) {
+      console.log('ℹ️ [PATIENT SERVICE] ClinicPatient уже существует (идемпотентность)');
+    } else {
+      console.warn('⚠️ [PATIENT SERVICE] Ошибка при создании GlobalPatient/ClinicPatient (не критично):', error.message);
+    }
+  }
 
   return patient;
 }

@@ -2,6 +2,10 @@ import { prisma } from '../config/database.js';
 import { hashPassword, verifyPassword } from '../utils/hash.util.js';
 import { generateToken } from '../utils/jwt.util.js';
 import { createSlug, createUniqueSlug } from '../utils/slug.util.js';
+import * as globalDoctorService from './global-doctor.service.js';
+import * as clinicDoctorService from './clinic-doctor.service.js';
+import * as globalPatientService from './global-patient.service.js';
+import * as clinicPatientService from './clinic-patient.service.js';
 
 /**
  * Auth Service
@@ -166,6 +170,46 @@ export async function registerUser(userData) {
 
     console.log('✅ [AUTH SERVICE] Patient создан:', { id: patient.id, email: patient.email });
 
+    // Создаем GlobalPatient + ClinicPatient (Phase 2: новая архитектура)
+    try {
+      console.log('🔵 [AUTH SERVICE] Создание GlobalPatient + ClinicPatient для пациента:', patient.id);
+
+      // Создаем или находим GlobalPatient
+      const globalPatient = await globalPatientService.findOrCreateGlobalPatient({
+        phone: patient.phone,
+        email: patient.email,
+        dateOfBirth: patient.dateOfBirth,
+        userId: null, // Patient из старой структуры не имеет User
+      });
+      console.log('✅ [AUTH SERVICE] GlobalPatient создан/найден:', globalPatient.id);
+
+      // Создаем ClinicPatient
+      const clinicPatient = await clinicPatientService.createClinicPatient(
+        clinic.id,
+        {
+          name: patient.name,
+          phone: patient.phone,
+          email: patient.email,
+          passwordHash: patient.passwordHash,
+          avatar: null,
+          dateOfBirth: patient.dateOfBirth,
+          gender: patient.gender,
+          notes: null,
+          status: patient.status || 'guest',
+        },
+        globalPatient.id
+      );
+      console.log('✅ [AUTH SERVICE] ClinicPatient создан:', clinicPatient.id);
+    } catch (error) {
+      // Логируем ошибку, но не прерываем регистрацию (fallback на старое)
+      // Если ClinicPatient уже существует - это нормально (идемпотентность)
+      if (error.message.includes('already exists') || error.message.includes('Unique constraint')) {
+        console.log('ℹ️ [AUTH SERVICE] ClinicPatient уже существует (идемпотентность)');
+      } else {
+        console.warn('⚠️ [AUTH SERVICE] Ошибка при создании GlobalPatient/ClinicPatient (не критично):', error.message);
+      }
+    }
+
     // Генерируем JWT токен для Patient
     const token = generateToken({
       patientId: patient.id, // Используем patientId вместо userId
@@ -293,6 +337,33 @@ export async function registerUser(userData) {
   });
 
   console.log('✅ [AUTH SERVICE] Пользователь создан:', { id: user.id, role: user.role, status: user.status });
+
+  // 8.1. Если это DOCTOR - создаем GlobalDoctor + ClinicDoctor (Phase 2: новая архитектура)
+  if (user.role === 'DOCTOR' && user.clinicId) {
+    try {
+      console.log('🔵 [AUTH SERVICE] Создание GlobalDoctor + ClinicDoctor для врача:', user.id);
+
+      // Создаем или находим GlobalDoctor
+      const globalDoctor = await globalDoctorService.findOrCreateGlobalDoctorForUser(user.id);
+      console.log('✅ [AUTH SERVICE] GlobalDoctor создан/найден:', globalDoctor.id);
+
+      // Создаем или находим ClinicDoctor
+      const clinicDoctor = await clinicDoctorService.findOrCreateClinicDoctorForUser(
+        user.id,
+        user.clinicId,
+        {
+          specialization: user.specialization || null,
+          licenseNumber: user.licenseNumber || null,
+          experience: user.experience || null,
+          isActive: user.status === 'ACTIVE',
+        }
+      );
+      console.log('✅ [AUTH SERVICE] ClinicDoctor создан/найден:', clinicDoctor.id);
+    } catch (error) {
+      // Логируем ошибку, но не прерываем регистрацию (fallback на старое)
+      console.warn('⚠️ [AUTH SERVICE] Ошибка при создании GlobalDoctor/ClinicDoctor (не критично):', error.message);
+    }
+  }
 
   // 9. Генерируем JWT токен
   const token = generateToken({

@@ -1,4 +1,5 @@
 import { prisma } from '../config/database.js';
+import { useNewAppointmentLogic } from '../config/features.js';
 
 /**
  * Appointment Service
@@ -139,10 +140,12 @@ export async function findAll(clinicId, options = {}) {
   }
 
   // Получаем приёмы и общее количество
+  // Phase 2: Пробуем читать с новыми relations, но fallback на старые
   const [appointments, total] = await Promise.all([
     prisma.appointment.findMany({
       where,
       include: {
+        // СТАРЫЕ relations (продолжают работать)
         doctor: {
           select: {
             id: true,
@@ -156,6 +159,37 @@ export async function findAll(clinicId, options = {}) {
             name: true,
             phone: true,
             email: true,
+          },
+        },
+        // НОВЫЕ relations (Phase 2 - optional, могут быть null)
+        clinicDoctor: {
+          include: {
+            globalDoctor: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        clinicPatient: {
+          include: {
+            globalPatient: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -190,6 +224,7 @@ export async function findById(clinicId, appointmentId) {
       clinicId, // ОБЯЗАТЕЛЬНО!
     },
     include: {
+      // СТАРЫЕ relations (продолжают работать)
       doctor: {
         select: {
           id: true,
@@ -207,6 +242,37 @@ export async function findById(clinicId, appointmentId) {
           dateOfBirth: true,
           gender: true,
           notes: true,
+        },
+      },
+      // НОВЫЕ relations (Phase 2 - optional, могут быть null)
+      clinicDoctor: {
+        include: {
+          globalDoctor: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      clinicPatient: {
+        include: {
+          globalPatient: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -271,11 +337,13 @@ async function checkTimeSlotAvailability(
 
 /**
  * Создать приём
+ * Phase 2: Dual-write - старая логика работает, новая добавляется параллельно
  * @param {string} clinicId - ID клиники
  * @param {object} data - Данные приёма
+ * @param {string} userId - ID пользователя, создающего appointment (для dual-write)
  * @returns {Promise<object>} Созданный приём
  */
-export async function create(clinicId, data) {
+export async function create(clinicId, data, userId = null) {
   // Проверяем что врач принадлежит клинике
   const doctor = await prisma.user.findFirst({
     where: {
@@ -359,6 +427,7 @@ export async function create(clinicId, data) {
     notes = `${notes}\nREGISTERED_AT_ORIGINAL: ${registeredAtOriginalString}`;
   }
   
+  // СТАРАЯ ЛОГИКА: Создаем appointment (продолжает работать)
   const appointment = await prisma.appointment.create({
     data: {
       clinicId, // ОБЯЗАТЕЛЬНО!
@@ -389,6 +458,110 @@ export async function create(clinicId, data) {
       },
     },
   });
+
+  // НОВАЯ ЛОГИКА: Dual-write - заполняем clinicDoctorId и clinicPatientId (Phase 2)
+  // Пытаемся заполнить новые поля, если это возможно
+  // Phase 2: dual-write работает всегда (независимо от feature flag)
+  // Feature flag будет использоваться в Phase 3 для полного переключения
+  try {
+    let updateData = {};
+
+    // 1. Пытаемся найти ClinicDoctor
+    if (userId || data.doctorId) {
+      const doctorIdForLookup = userId || data.doctorId;
+      
+      try {
+        const { findClinicDoctorForUser } = await import('./clinic-doctor.service.js');
+        const clinicDoctor = await findClinicDoctorForUser(doctorIdForLookup, clinicId);
+        
+        if (clinicDoctor) {
+          updateData.clinicDoctorId = clinicDoctor.id;
+          console.log(`✅ [APPOINTMENT SERVICE] Phase 2: Найден ClinicDoctor для appointment ${appointment.id}`, {
+            clinicDoctorId: clinicDoctor.id,
+          });
+        } else {
+          console.warn(`⚠️ [APPOINTMENT SERVICE] Phase 2: ClinicDoctor не найден для userId=${doctorIdForLookup}, clinicId=${clinicId}`);
+        }
+      } catch (error) {
+        console.warn(`⚠️ [APPOINTMENT SERVICE] Phase 2: Ошибка при поиске ClinicDoctor:`, error.message);
+      }
+    }
+
+    // 2. Пытаемся найти ClinicPatient
+    if (data.patientId) {
+      try {
+        // Находим Patient (старая структура)
+        const patient = await prisma.patient.findFirst({
+          where: {
+            id: data.patientId,
+            clinicId,
+          },
+          select: {
+            id: true,
+            phone: true,
+            email: true,
+            dateOfBirth: true,
+          },
+        });
+
+        if (patient) {
+          // Пытаемся найти GlobalPatient по matching
+          const { findGlobalPatientByMatch } = await import('./global-patient.service.js');
+          const globalPatient = await findGlobalPatientByMatch({
+            phone: patient.phone,
+            email: patient.email,
+            dateOfBirth: patient.dateOfBirth,
+          });
+
+          if (globalPatient) {
+            // Находим ClinicPatient
+            const { findClinicPatientForGlobal } = await import('./clinic-patient.service.js');
+            const clinicPatient = await findClinicPatientForGlobal(globalPatient.id, clinicId);
+
+            if (clinicPatient) {
+              updateData.clinicPatientId = clinicPatient.id;
+              console.log(`✅ [APPOINTMENT SERVICE] Phase 2: Найден ClinicPatient для appointment ${appointment.id}`, {
+                clinicPatientId: clinicPatient.id,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ [APPOINTMENT SERVICE] Phase 2: Ошибка при поиске ClinicPatient:`, error.message);
+      }
+    }
+
+    // 3. Обновляем appointment, если нашли хотя бы одно новое поле
+    if (Object.keys(updateData).length > 0) {
+      const updatedAppointment = await prisma.appointment.update({
+        where: { id: appointment.id },
+        data: updateData,
+        include: {
+          doctor: {
+            select: {
+              id: true,
+              name: true,
+              specialization: true,
+            },
+          },
+          patient: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+            },
+          },
+        },
+      });
+
+      console.log(`✅ [APPOINTMENT SERVICE] Phase 2: Appointment ${appointment.id} обновлен с новыми полями`, updateData);
+      return updatedAppointment;
+    }
+  } catch (error) {
+    // Если новая логика не работает - возвращаем старое (fallback)
+    console.warn(`⚠️ [APPOINTMENT SERVICE] Phase 2: Dual-write не удался, используем старое appointment:`, error.message);
+    // Не прерываем выполнение - возвращаем старое appointment
+  }
 
   // Создаем уведомления для врача и администратора о новой записи
   try {
