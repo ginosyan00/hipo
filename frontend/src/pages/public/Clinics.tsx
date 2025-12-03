@@ -8,10 +8,6 @@ import { Clinic } from '../../types/api.types';
 import hippocratesLogo from '../../assets/icons/hippocrates-logo.png';
 import searchIcon from '../../assets/icons/search.svg';
 
-/**
- * Clinics Page - Figma Design Style
- * Каталог клиник в стиле медицинского дашборда
- */
 export const ClinicsPage: React.FC = () => {
   const [selectedCity, setSelectedCity] = useState<string>('');
 

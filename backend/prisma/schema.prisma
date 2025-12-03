@@ -1,5 +1,6 @@
 // Hippocrates Dental - Database Schema
 // Provider: SQLite (для MVP)
+// Multi-Clinic Medical CRM Architecture
 
 generator client {
   provider = "prisma-client-js"
@@ -13,6 +14,8 @@ datasource db {
 // ============================================
 // CLINIC (Клиника)
 // ============================================
+// Container of all medical data.
+// Each clinic stores its own ClinicDoctors, ClinicPatients and Appointments.
 
 model Clinic {
   id           String   @id @default(uuid())
@@ -30,179 +33,212 @@ model Clinic {
   updatedAt    DateTime @updatedAt
 
   // Relations
-  users          User[]
-  patients       Patient[]
   appointments   Appointment[]
-  notifications  Notification[]
   settings       ClinicSettings?
   certificates   Certificate[]
-  conversations  Conversation[]
   clinicDoctors  ClinicDoctor[]
   clinicPatients ClinicPatient[]
+  notifications  Notification[]
+  conversations  Conversation[]
 
   @@map("clinics")
 }
 
 // ============================================
-// USER (Multi-Role: Doctor, Partner, Admin, Clinic)
+// USER (Пользователь - только для входа)
 // ============================================
-
-// Note: SQLite doesn't support enums, so we use String with validation in code
-// Valid roles: "DOCTOR" | "PARTNER" | "ADMIN" | "CLINIC"
-// Valid statuses: "PENDING" | "ACTIVE" | "SUSPENDED" | "REJECTED"
-// NOTE: PATIENT role removed - patients are now in Patient table with authentication
+// Represents login access only.
+// Must contain: id, email, phone?, roles (string[]), globalDoctorId?, globalPatientId?
+// Relation to GlobalDoctor (optional)
+// Relation to GlobalPatient (optional)
+// Must have relation: appointmentsCreated → Appointment.createdByUserId
 
 model User {
-  id           String  @id @default(uuid())
-  clinicId     String? // Optional - только для Doctor/Admin
-  name         String
-  email        String  @unique
-  passwordHash String
-  role         String  @default("DOCTOR") // DOCTOR | PARTNER | ADMIN | CLINIC (PATIENT removed)
-  status       String  @default("ACTIVE") // PENDING | ACTIVE | SUSPENDED | REJECTED
-
-  // Common fields
-  phone       String?
-  avatar      String?
-  dateOfBirth DateTime?
-  gender      String? // male | female | other
-
-  // Doctor-specific fields
-  specialization String? // Только для DOCTOR
-  licenseNumber  String? // Номер лицензии
-  experience     Int? // Опыт работы (лет)
-
-  // Partner-specific fields
-  organizationName String? // Название организации
-  organizationType String? // pharmacy | laboratory | insurance
-  inn              String? // ИНН/ОГРН
-  address          String? // Адрес организации
-
-  // System fields
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  email           String   @unique
+  phone           String?
+  passwordHash    String
+  roles           String // JSON array as String in SQLite: ["DOCTOR", "ADMIN", "PARTNER", "CLINIC"]
+  globalDoctorId  String?  @unique
+  globalPatientId String?  @unique
+  status          String   @default("ACTIVE") // PENDING | ACTIVE | SUSPENDED | REJECTED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relations
-  clinic        Clinic?        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  appointments  Appointment[]
-  notifications Notification[]
-  conversations Conversation[]
-  globalDoctor  GlobalDoctor?  @relation("GlobalDoctorToUser") // Reverse relation from GlobalDoctor.userId
-  globalPatient GlobalPatient? @relation("GlobalPatientToUser") // Reverse relation from GlobalPatient.userId
+  globalDoctor        GlobalDoctor?  @relation("UserToGlobalDoctor", fields: [globalDoctorId], references: [id], onDelete: SetNull)
+  globalPatient       GlobalPatient? @relation("UserToGlobalPatient", fields: [globalPatientId], references: [id], onDelete: SetNull)
+  appointmentsCreated Appointment[]  @relation("AppointmentCreatedBy")
+  notifications       Notification[]
+  conversations       Conversation[]
 
-  @@index([clinicId])
   @@index([email])
-  @@index([role])
+  @@index([globalDoctorId])
+  @@index([globalPatientId])
   @@index([status])
   @@map("users")
 }
 
 // ============================================
-// PATIENT (Пациент)
+// GLOBAL DOCTOR (Врач как личность - глобально)
 // ============================================
+// Identity of a doctor across the entire platform.
+// NOT clinic-specific.
+// One real human doctor = one GlobalDoctor
+// Can work in multiple clinics (multiple ClinicDoctor records)
 
-// Patient can be:
-// - "registered" - has account (email + passwordHash) - can login
-// - "guest" - no account (no email/passwordHash) - created by doctor, cannot login
+model GlobalDoctor {
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-model Patient {
-  id           String    @id @default(uuid())
-  clinicId     String
-  name         String
-  phone        String
-  email        String?   @unique // Optional - only for registered patients
-  passwordHash String? // Optional - only for registered patients (self-registered)
-  avatar       String? // Avatar/logo пациента
-  dateOfBirth  DateTime?
-  gender       String? // male | female | other
-  notes        String?
-  status       String    @default("guest") // "registered" (has account) | "guest" (no account)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  // Relations
+  user          User?          @relation("UserToGlobalDoctor")
+  clinicDoctors ClinicDoctor[]
+
+  @@index([firstName, lastName])
+  @@map("global_doctors")
+}
+
+// ============================================
+// CLINIC DOCTOR (Профиль врача в конкретной клинике)
+// ============================================
+// A doctor inside a specific clinic.
+// One doctor in one clinic = one ClinicDoctor record
+// Doctor working in 3 clinics = 3 ClinicDoctor records
+// Appointments MUST reference clinicDoctorId.
+
+model ClinicDoctor {
+  id             String   @id @default(uuid())
+  clinicId       String
+  globalDoctorId String
+  speciality     String? // Специализация врача в этой клинике
+  schedule       String? // JSON as String in SQLite - расписание работы
+  percent        Float? // Процент от оплаты (если используется)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  globalDoctor GlobalDoctor  @relation(fields: [globalDoctorId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@unique([clinicId, globalDoctorId]) // Один врач может быть только один раз в клинике
+  @@index([clinicId])
+  @@index([globalDoctorId])
+  @@index([isActive])
+  @@map("clinic_doctors")
+}
+
+// ============================================
+// GLOBAL PATIENT (Пациент как личность - глобально)
+// ============================================
+// Identity of a patient across the entire platform.
+// Created when a User registers or manually when syncing patient profiles.
+// One real human patient = one GlobalPatient
+// Can be treated in multiple clinics (multiple ClinicPatient records)
+
+model GlobalPatient {
+  id        String   @id @default(uuid())
+  firstName String?
+  lastName  String?
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user           User?           @relation("UserToGlobalPatient")
+  clinicPatients ClinicPatient[]
+
+  @@index([phone])
+  @@index([email])
+  @@map("global_patients")
+}
+
+// ============================================
+// CLINIC PATIENT (Профиль пациента в конкретной клинике)
+// ============================================
+// Local medical card inside a specific clinic.
+// One patient in one clinic = one ClinicPatient record
+// Patient treated in 4 clinics = 4 ClinicPatient records
+// Appointments MUST reference clinicPatientId.
+
+model ClinicPatient {
+  id               String    @id @default(uuid())
+  clinicId         String
+  globalPatientId  String
+  name             String
+  phone            String
+  email            String?
+  passwordHash     String? // Optional - only for registered patients
+  avatar           String?
+  dateOfBirth      DateTime?
+  gender           String? // male | female | other
+  notes            String?
+  localMedicalCard String? // Локальная медицинская карта (JSON as String)
+  status           String    @default("guest") // "registered" | "guest"
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   // Relations
   clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  globalPatient GlobalPatient  @relation(fields: [globalPatientId], references: [id], onDelete: Cascade)
   appointments  Appointment[]
   notifications Notification[]
   conversations Conversation[]
 
+  @@unique([clinicId, globalPatientId]) // Один пациент может быть только один раз в клинике
   @@index([clinicId])
+  @@index([globalPatientId])
   @@index([phone])
   @@index([email])
   @@index([status])
-  @@map("patients")
+  @@map("clinic_patients")
 }
 
 // ============================================
 // APPOINTMENT (Приём)
 // ============================================
+// The connection point of clinic, doctor, and patient.
+// Appointments MUST reference clinicDoctorId and clinicPatientId.
+// Relations: clinic → Clinic, doctor → ClinicDoctor, patient → ClinicPatient, createdBy → User
 
 model Appointment {
   id                 String    @id @default(uuid())
   clinicId           String
-  doctorId           String
-  patientId          String
-  appointmentDate    DateTime
-  duration           Int       @default(30)
+  clinicDoctorId     String
+  clinicPatientId    String
+  createdByUserId    String // User who created the appointment
+  dateTime           DateTime // Appointment date and time
+  duration           Int       @default(30) // Duration in minutes
   status             String    @default("pending") // pending | confirmed | completed | cancelled
   notes              String?
-  reason             String?
-  amount             Float? // Сумма оплаты (в драмах/рублях)
-  registeredAt       DateTime? // Время когда пациент был на сайте и отправил регистрацию (локальное время пользователя)
-  cancellationReason String? // Причина отмены приёма (обязательно при статусе cancelled)
-  suggestedNewDate   DateTime? // Предложенное новое время приёма (опционально)
+  reason             String? // Reason for appointment
+  amount             Float? // Payment amount
+  registeredAt       DateTime? // Time when patient registered on website (local time)
+  cancellationReason String? // Cancellation reason (required if status is cancelled)
+  suggestedNewDate   DateTime? // Suggested new date (optional)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  // NEW: Links to clinic identities (optional, for gradual migration)
-  clinicDoctorId  String? // Links to ClinicDoctor (nullable for backward compatibility)
-  clinicPatientId String? // Links to ClinicPatient (nullable for backward compatibility)
-
   // Relations
-  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  doctor        User           @relation(fields: [doctorId], references: [id])
-  patient       Patient        @relation(fields: [patientId], references: [id])
-  clinicDoctor  ClinicDoctor?  @relation(fields: [clinicDoctorId], references: [id])
-  clinicPatient ClinicPatient? @relation(fields: [clinicPatientId], references: [id])
+  clinic        Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinicDoctor  ClinicDoctor  @relation(fields: [clinicDoctorId], references: [id], onDelete: Cascade)
+  clinicPatient ClinicPatient @relation(fields: [clinicPatientId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation("AppointmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   @@index([clinicId])
-  @@index([doctorId])
-  @@index([patientId])
-  @@index([appointmentDate])
-  @@index([status])
   @@index([clinicDoctorId])
   @@index([clinicPatientId])
+  @@index([createdByUserId])
+  @@index([dateTime])
+  @@index([status])
   @@map("appointments")
-}
-
-// ============================================
-// NOTIFICATION (Уведомление)
-// ============================================
-
-model Notification {
-  id            String   @id @default(uuid())
-  clinicId      String
-  patientId     String? // Опционально - для уведомлений врачей
-  userId        String? // Опционально - для уведомлений врачей (DOCTOR)
-  type          String // cancellation | reschedule | reminder | confirmation | new_appointment | other
-  title         String
-  message       String
-  isRead        Boolean  @default(false)
-  appointmentId String? // ID приёма, связанного с уведомлением (опционально)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  clinic  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient Patient? @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([clinicId])
-  @@index([patientId])
-  @@index([userId])
-  @@index([isRead])
-  @@index([createdAt])
-  @@map("notifications")
 }
 
 // ============================================
@@ -250,7 +286,7 @@ model Certificate {
   fileUrl           String // URL файла (base64 или путь к файлу)
   fileType          String // Тип файла: pdf, jpg, png
   fileSize          Int? // Размер файла в байтах
-  isVerified        Boolean   @default(false) // Верифицирован ли администратором (для будущего использования)
+  isVerified        Boolean   @default(false) // Верифицирован ли администратором
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -263,13 +299,43 @@ model Certificate {
 }
 
 // ============================================
+// NOTIFICATION (Уведомление)
+// ============================================
+
+model Notification {
+  id              String   @id @default(uuid())
+  clinicId        String
+  clinicPatientId String? // Опционально - для уведомлений пациентов
+  userId          String? // Опционально - для уведомлений врачей/админов
+  type            String // cancellation | reschedule | reminder | confirmation | new_appointment | other
+  title           String
+  message         String
+  isRead          Boolean  @default(false)
+  appointmentId   String? // ID приёма, связанного с уведомлением (опционально)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinicPatient ClinicPatient? @relation(fields: [clinicPatientId], references: [id], onDelete: Cascade)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([clinicPatientId])
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============================================
 // CONVERSATION (Беседа в чате)
 // ============================================
 
 model Conversation {
   id              String    @id @default(uuid())
   clinicId        String
-  patientId       String? // ID пациента (если чат с пациентом)
+  clinicPatientId String? // ID пациента (если чат с пациентом)
   userId          String? // ID врача или сотрудника клиники
   type            String    @default("patient_doctor") // patient_doctor | patient_clinic | system
   lastMessageAt   DateTime? // Время последнего сообщения
@@ -279,13 +345,13 @@ model Conversation {
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  clinic   Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patient  Patient?  @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinicPatient ClinicPatient? @relation(fields: [clinicPatientId], references: [id], onDelete: Cascade)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      Message[]
 
   @@index([clinicId])
-  @@index([patientId])
+  @@index([clinicPatientId])
   @@index([userId])
   @@index([lastMessageAt])
   @@map("conversations")
@@ -298,7 +364,7 @@ model Conversation {
 model Message {
   id             String    @id @default(uuid())
   conversationId String
-  senderId       String // ID отправителя (userId или patientId)
+  senderId       String // ID отправителя (userId или clinicPatientId)
   senderType     String // patient | doctor | clinic | system
   content        String // Текст сообщения
   imageUrl       String? // URL изображения (если сообщение содержит изображение)
@@ -315,115 +381,4 @@ model Message {
   @@index([isRead])
   @@index([createdAt])
   @@map("messages")
-}
-
-// ============================================
-// GLOBAL DOCTOR (Врач как личность - глобально)
-// ============================================
-// NEW MODEL: Phase 1 - Global/Clinic Identity Separation
-// One real human doctor = one GlobalDoctor
-// Can work in multiple clinics (multiple ClinicDoctor records)
-
-model GlobalDoctor {
-  id        String   @id @default(uuid())
-  userId    String   @unique // Links to User (login identity)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user          User           @relation("GlobalDoctorToUser", fields: [userId], references: [id], onDelete: Cascade)
-  clinicDoctors ClinicDoctor[]
-
-  @@index([userId])
-  @@map("global_doctors")
-}
-
-// ============================================
-// CLINIC DOCTOR (Профиль врача в конкретной клинике)
-// ============================================
-// NEW MODEL: Phase 1 - Global/Clinic Identity Separation
-// One doctor in one clinic = one ClinicDoctor record
-// Doctor working in 3 clinics = 3 ClinicDoctor records
-
-model ClinicDoctor {
-  id             String   @id @default(uuid())
-  clinicId       String
-  globalDoctorId String
-  specialization String? // Clinic-specific specialization
-  licenseNumber  String? // Clinic-specific license number
-  experience     Int? // Clinic-specific experience (years)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  globalDoctor GlobalDoctor  @relation(fields: [globalDoctorId], references: [id], onDelete: Cascade)
-  appointments Appointment[]
-
-  @@index([clinicId])
-  @@index([globalDoctorId])
-  @@index([clinicId, globalDoctorId]) // Composite index for fast lookup
-  @@map("clinic_doctors")
-}
-
-// ============================================
-// GLOBAL PATIENT (Пациент как личность - глобально)
-// ============================================
-// NEW MODEL: Phase 1 - Global/Clinic Identity Separation
-// One real human patient = one GlobalPatient
-// Can be treated in multiple clinics (multiple ClinicPatient records)
-
-model GlobalPatient {
-  id        String   @id @default(uuid())
-  userId    String?  @unique // Optional - only if patient has registered account
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user           User?           @relation("GlobalPatientToUser", fields: [userId], references: [id], onDelete: SetNull)
-  clinicPatients ClinicPatient[]
-
-  @@index([userId])
-  @@map("global_patients")
-}
-
-// ============================================
-// CLINIC PATIENT (Профиль пациента в конкретной клинике)
-// ============================================
-// NEW MODEL: Phase 1 - Global/Clinic Identity Separation
-// One patient in one clinic = one ClinicPatient record
-// Patient treated in 4 clinics = 4 ClinicPatient records
-//
-// NOTE: This will eventually replace the Patient model
-// For now, we keep both (Patient remains for backward compatibility)
-
-model ClinicPatient {
-  id              String    @id @default(uuid())
-  clinicId        String
-  globalPatientId String
-  name            String
-  phone           String
-  email           String?   @unique
-  passwordHash    String? // Optional - only for registered patients
-  avatar          String?
-  dateOfBirth     DateTime?
-  gender          String? // male | female | other
-  notes           String?
-  status          String    @default("guest") // "registered" | "guest"
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  // Relations
-  clinic        Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  globalPatient GlobalPatient @relation(fields: [globalPatientId], references: [id], onDelete: Cascade)
-  appointments  Appointment[]
-
-  @@index([clinicId])
-  @@index([globalPatientId])
-  @@index([clinicId, globalPatientId]) // Composite index for fast lookup
-  @@index([phone])
-  @@index([email])
-  @@index([status])
-  @@map("clinic_patients")
 }
